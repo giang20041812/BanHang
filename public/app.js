@@ -131,7 +131,28 @@ async function loadOrders() {
   }
 }
 
+function updateOrderStats() {
+  const totalRevEl = document.getElementById('stat-total-revenue');
+  const deliveredRevEl = document.getElementById('stat-delivered-revenue');
+  const totalOrdersEl = document.getElementById('stat-total-orders');
+
+  if (!totalRevEl || !deliveredRevEl || !totalOrdersEl) return;
+
+  // Tổng doanh thu tất cả đơn không tính đơn đã hủy
+  const nonCancelledOrders = orders.filter(o => o.status !== 'Đã hủy');
+  const totalRevenue = nonCancelledOrders.reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
+
+  // Doanh thu đơn đã giao thành công
+  const deliveredOrders = orders.filter(o => o.status === 'Đã giao');
+  const deliveredRevenue = deliveredOrders.reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
+
+  totalRevEl.textContent = formatCurrency(totalRevenue);
+  deliveredRevEl.textContent = formatCurrency(deliveredRevenue);
+  totalOrdersEl.textContent = `${orders.length} đơn (${deliveredOrders.length} đã giao)`;
+}
+
 function renderOrders() {
+  updateOrderStats();
   const tbody = document.getElementById('orders-tbody');
   const filter = document.getElementById('filter-status').value;
 
