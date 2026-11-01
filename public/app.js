@@ -249,13 +249,13 @@ function renderKanban() {
 
     const cardsHtml = colOrders.length > 0
       ? colOrders.map(o => {
-          const items = o.order_items || [];
-          const date = o.created_at ? new Date(o.created_at) : null;
-          const timeText = date && !isNaN(date.getTime())
-            ? `${date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} ${date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}`
-            : '';
+        const items = o.order_items || [];
+        const date = o.created_at ? new Date(o.created_at) : null;
+        const timeText = date && !isNaN(date.getTime())
+          ? `${date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} ${date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}`
+          : '';
 
-          return `
+        return `
             <div draggable="true"
                  ondragstart="handleKanbanDragStart(event, ${o.id})"
                  ondragend="handleKanbanDragEnd(event)"
@@ -270,9 +270,10 @@ function renderKanban() {
               </div>
 
               <div>
-                <div class="text-[10px] sm:text-sm font-bold text-slate-900 flex items-center gap-1 truncate">
-                  <span class="text-[10px] text-blue-500 shrink-0">📞</span> <span class="truncate">${escapeHtml(o.customer_phone)}</span>
+                <div class="text-[10px] sm:text-sm font-bold text-slate-900 flex items-center gap-1 truncate" title="${escapeHtml(o.customer_name ? `${o.customer_name} (${o.customer_phone})` : o.customer_phone)}">
+                  <span class="text-[10px] text-blue-500 shrink-0">👤</span> <span class="truncate">${escapeHtml(o.customer_name || o.customer_phone)}</span>
                 </div>
+                ${o.customer_name ? `<div class="text-[9px] sm:text-xs text-slate-500 font-mono truncate">📞 ${escapeHtml(o.customer_phone)}</div>` : ''}
                 <div class="text-[9px] sm:text-xs text-slate-500 truncate mt-0.5" title="${escapeHtml(o.shipping_address)}">
                   📍${escapeHtml(o.shipping_address)}
                 </div>
@@ -293,7 +294,7 @@ function renderKanban() {
                   </div>
                 ` : ''}
               </div>
-              <div class="sm:hidden bg-slate-50 rounded p-1 text-[9px] text-slate-600 font-medium truncate border border-slate-100" title="${escapeHtml(items.map(i=>`${i.product_name} x${i.quantity}`).join(', '))}">
+              <div class="sm:hidden bg-slate-50 rounded p-1 text-[9px] text-slate-600 font-medium truncate border border-slate-100" title="${escapeHtml(items.map(i => `${i.product_name} x${i.quantity}`).join(', '))}">
                 📦 ${items.length} món
               </div>
 
@@ -311,7 +312,7 @@ function renderKanban() {
               </div>
             </div>
           `;
-        }).join('')
+      }).join('')
       : `<div class="h-16 sm:h-32 border-2 border-dashed border-slate-200 rounded-lg sm:rounded-xl flex flex-col items-center justify-center text-[9px] sm:text-xs text-slate-400 gap-0.5 select-none text-center p-1">
            <span>Thả đơn</span>
          </div>`;
@@ -392,8 +393,8 @@ function renderOrders() {
 
   const filter = document.getElementById('filter-status')?.value || 'all';
 
-  const filteredOrders = filter === 'all' 
-    ? orders 
+  const filteredOrders = filter === 'all'
+    ? orders
     : orders.filter(o => o.status === filter);
 
   if (!filteredOrders.length) {
@@ -403,7 +404,7 @@ function renderOrders() {
 
   tbody.innerHTML = filteredOrders.map(o => {
     const items = o.order_items || [];
-    const itemsText = items.map(it => 
+    const itemsText = items.map(it =>
       `<div class="text-xs text-slate-700 font-medium py-0.5">${escapeHtml(it.product_name)} <span class="text-slate-400 font-normal">x${it.quantity}</span> <span class="text-slate-500 font-mono text-[11px]">(${formatCurrency((it.price || 0) * (it.quantity || 1))})</span></div>`
     ).join('') || '<span class="text-xs text-slate-400 italic">Không có mặt hàng</span>';
 
@@ -412,7 +413,10 @@ function renderOrders() {
         <td class="p-3.5 whitespace-nowrap">
           <span class="font-mono text-xs font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200">#${o.id}</span>
         </td>
-        <td class="p-3.5 font-bold text-slate-900 text-sm whitespace-nowrap">${escapeHtml(o.customer_phone)}</td>
+        <td class="p-3.5 whitespace-nowrap">
+          <div class="font-bold text-slate-900 text-sm">${escapeHtml(o.customer_name || o.customer_phone)}</div>
+          ${o.customer_name ? `<div class="text-xs text-slate-500 font-mono">${escapeHtml(o.customer_phone)}</div>` : ''}
+        </td>
         <td class="p-3.5 text-xs text-slate-600 max-w-xs break-words">${escapeHtml(o.shipping_address)}</td>
         <td class="p-3.5">${itemsText}</td>
         <td class="p-3.5 text-right text-xs text-slate-500 font-mono font-medium whitespace-nowrap">${formatCurrency(o.shipping_fee || 0)}</td>
@@ -590,7 +594,7 @@ function updateModalProductSelect() {
     select.innerHTML = '<option value="">-- Chưa có mặt hàng nào --</option>';
     return;
   }
-  select.innerHTML = products.map(p => 
+  select.innerHTML = products.map(p =>
     `<option value="${p.id}" data-name="${escapeHtml(p.name)}" data-price="${p.price}">
       ${escapeHtml(p.name)} - ${formatCurrency(p.price)}
     </option>`
@@ -601,6 +605,8 @@ function openOrderModal() {
   pendingOrderItems = [];
   const form = document.getElementById('order-form');
   if (form) form.reset();
+  const nameInput = document.getElementById('order-customer-name');
+  if (nameInput) nameInput.value = '';
   const shipInput = document.getElementById('order-shipping-fee');
   if (shipInput) shipInput.value = 0;
   renderPendingItems();
@@ -687,6 +693,7 @@ async function handleCreateOrder(e) {
     return;
   }
 
+  const customerName = document.getElementById('order-customer-name')?.value.trim() || '';
   const phone = document.getElementById('order-phone').value.trim();
   const address = document.getElementById('order-address').value.trim();
   const shipFeeInput = document.getElementById('order-shipping-fee');
@@ -698,6 +705,7 @@ async function handleCreateOrder(e) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        customer_name: customerName,
         customer_phone: phone,
         shipping_address: address,
         shipping_fee: shippingFee,

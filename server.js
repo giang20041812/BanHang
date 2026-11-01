@@ -44,6 +44,7 @@ let memProducts = [
 let memOrders = [
   {
     id: 1,
+    customer_name: 'Nguyễn Văn A',
     customer_phone: '0912345678',
     shipping_address: '123 Cầu Giấy, Hà Nội',
     shipping_fee: 30000,
@@ -149,7 +150,7 @@ app.get('/api/orders', async (req, res) => {
 // Tạo đơn hàng
 app.post('/api/orders', async (req, res) => {
   try {
-    const { customer_phone, shipping_address, shipping_fee = 0, status = 'Chờ xử lý', items = [] } = req.body;
+    const { customer_name = '', customer_phone, shipping_address, shipping_fee = 0, status = 'Chờ xử lý', items = [] } = req.body;
     if (!customer_phone || !shipping_address) {
       return res.status(400).json({ error: 'Vui lòng nhập SĐT và địa chỉ nhận hàng' });
     }
@@ -168,6 +169,7 @@ app.post('/api/orders', async (req, res) => {
       const { data: order, error: orderErr } = await supabase
         .from('orders')
         .insert([{
+          customer_name: (customer_name || '').trim(),
           customer_phone: customer_phone.trim(),
           shipping_address: shipping_address.trim(),
           shipping_fee: shipFee,
@@ -202,6 +204,7 @@ app.post('/api/orders', async (req, res) => {
 
     const newOrder = {
       id: Date.now(),
+      customer_name: (customer_name || '').trim(),
       customer_phone: customer_phone.trim(),
       shipping_address: shipping_address.trim(),
       shipping_fee: shipFee,
