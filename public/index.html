@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quản lý Đơn hàng & Mặt hàng</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 text-gray-800 antialiased font-sans">
+  <div class="max-w-6xl mx-auto p-4 sm:p-6">
+    <!-- Header -->
+    <header class="flex flex-wrap items-center justify-between pb-4 border-b border-gray-200 gap-3">
+      <div class="flex items-center gap-3">
+        <h1 class="text-xl font-bold tracking-tight">Hệ Thống Đơn Hàng</h1>
+        <span id="db-status-badge" class="text-xs px-2.5 py-0.5 rounded-full font-medium bg-gray-200 text-gray-700">
+          Đang kiểm tra...
+        </span>
+      </div>
+
+      <nav class="flex space-x-1 bg-gray-200 p-1 rounded-lg">
+        <button id="tab-orders-btn" onclick="switchTab('orders')" class="px-4 py-1.5 text-sm font-medium rounded-md bg-white text-gray-900 shadow-sm">
+          Đơn Hàng
+        </button>
+        <button id="tab-products-btn" onclick="switchTab('products')" class="px-4 py-1.5 text-sm font-medium rounded-md text-gray-600 hover:text-gray-900">
+          Mặt Hàng
+        </button>
+      </nav>
+    </header>
+
+    <!-- TAB 1: ĐƠN HÀNG -->
+    <main id="tab-orders" class="mt-6 space-y-4">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-2">
+          <label class="text-xs font-semibold text-gray-500 uppercase">Lọc:</label>
+          <select id="filter-status" onchange="renderOrders()" class="text-sm bg-white border border-gray-300 rounded px-2.5 py-1 focus:outline-none">
+            <option value="all">Tất cả trạng thái</option>
+            <option value="Chờ xử lý">Chờ xử lý</option>
+            <option value="Đang giao">Đang giao</option>
+            <option value="Đã giao">Đã giao</option>
+            <option value="Đã hủy">Đã hủy</option>
+          </select>
+        </div>
+
+        <button onclick="openOrderModal()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium shadow-sm transition">
+          + Tạo đơn hàng
+        </button>
+      </div>
+
+      <!-- Bảng đơn hàng -->
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-x-auto">
+        <table class="w-full text-left text-sm border-collapse">
+          <thead>
+            <tr class="bg-gray-50 border-b text-gray-600 uppercase text-xs">
+              <th class="p-3">Mã</th>
+              <th class="p-3">Khách hàng</th>
+              <th class="p-3">Địa chỉ ship</th>
+              <th class="p-3">Mặt hàng</th>
+              <th class="p-3 text-right">Tổng tiền</th>
+              <th class="p-3">Trạng thái</th>
+              <th class="p-3 text-center">Hành động</th>
+            </tr>
+          </thead>
+          <tbody id="orders-tbody" class="divide-y divide-gray-100">
+            <tr>
+              <td colspan="7" class="p-6 text-center text-gray-400">Đang tải dữ liệu...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </main>
+
+    <!-- TAB 2: MẶT HÀNG -->
+    <main id="tab-products" class="mt-6 space-y-4 hidden">
+      <!-- Form thêm mặt hàng -->
+      <form onsubmit="handleCreateProduct(event)" class="bg-white p-4 rounded-lg shadow-sm border border-gray-200 flex flex-wrap gap-3 items-end">
+        <div class="flex-1 min-w-[200px]">
+          <label class="block text-xs font-medium text-gray-700 mb-1">Tên mặt hàng</label>
+          <input type="text" id="prod-name" required placeholder="Ví dụ: Áo phông" class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500">
+        </div>
+        <div class="w-44">
+          <label class="block text-xs font-medium text-gray-700 mb-1">Giá (VNĐ)</label>
+          <input type="number" id="prod-price" min="0" required placeholder="100000" class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500">
+        </div>
+        <button type="submit" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-sm font-medium shadow-sm transition">
+          Thêm mặt hàng
+        </button>
+      </form>
+
+      <!-- Bảng mặt hàng -->
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-x-auto">
+        <table class="w-full text-left text-sm border-collapse">
+          <thead>
+            <tr class="bg-gray-50 border-b text-gray-600 uppercase text-xs">
+              <th class="p-3">ID</th>
+              <th class="p-3">Tên mặt hàng</th>
+              <th class="p-3 text-right">Đơn giá</th>
+              <th class="p-3 text-center w-24">Hành động</th>
+            </tr>
+          </thead>
+          <tbody id="products-tbody" class="divide-y divide-gray-100">
+            <tr>
+              <td colspan="4" class="p-6 text-center text-gray-400">Đang tải dữ liệu...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </main>
+  </div>
+
+  <!-- Modal Tạo Đơn Hàng -->
+  <div id="order-modal" class="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50 hidden">
+    <div class="bg-white rounded-xl shadow-xl w-full max-w-lg p-5 space-y-4">
+      <div class="flex justify-between items-center border-b pb-2">
+        <h2 class="text-base font-semibold">Tạo Đơn Hàng Mới</h2>
+        <button onclick="closeOrderModal()" class="text-gray-400 hover:text-gray-600 text-xl font-bold">&times;</button>
+      </div>
+
+      <form id="order-form" onsubmit="handleCreateOrder(event)" class="space-y-3">
+        <div>
+          <label class="block text-xs font-medium text-gray-700 mb-1">Số điện thoại khách *</label>
+          <input type="tel" id="order-phone" required placeholder="09xxxx..." class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500">
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-gray-700 mb-1">Địa chỉ nhận hàng *</label>
+          <textarea id="order-address" required rows="2" placeholder="Số nhà, đường, quận/huyện..." class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500"></textarea>
+        </div>
+
+        <!-- Chọn mặt hàng -->
+        <div class="border rounded-lg p-3 bg-gray-50 space-y-2">
+          <label class="block text-xs font-bold text-gray-700">Mặt hàng mua</label>
+          <div class="flex gap-2">
+            <select id="modal-product-select" class="flex-1 border border-gray-300 rounded px-2.5 py-1 text-sm bg-white focus:outline-none">
+              <!-- Rendered options -->
+            </select>
+            <input type="number" id="modal-product-qty" min="1" value="1" class="w-16 border border-gray-300 rounded px-2 py-1 text-sm text-center">
+            <button type="button" onclick="addItemToOrder()" class="px-3 py-1 bg-gray-800 text-white text-xs font-medium rounded hover:bg-black">
+              + Thêm
+            </button>
+          </div>
+
+          <!-- Danh sách mặt hàng đã thêm trong đơn này -->
+          <div id="modal-items-list" class="space-y-1 max-h-36 overflow-y-auto pt-1">
+            <p class="text-xs text-gray-400 italic">Chưa chọn mặt hàng nào</p>
+          </div>
+
+          <div class="flex justify-between items-center pt-2 border-t text-sm font-semibold">
+            <span>Tổng tiền:</span>
+            <span id="modal-total-display" class="text-blue-600">0 ₫</span>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-gray-700 mb-1">Trạng thái ban đầu</label>
+          <select id="order-status" class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm bg-white focus:outline-none">
+            <option value="Chờ xử lý">Chờ xử lý</option>
+            <option value="Đang giao">Đang giao</option>
+            <option value="Đã giao">Đã giao</option>
+            <option value="Đã hủy">Đã hủy</option>
+          </select>
+        </div>
+
+        <div class="flex justify-end gap-2 pt-2 border-t">
+          <button type="button" onclick="closeOrderModal()" class="px-4 py-2 border rounded-md text-sm text-gray-700 hover:bg-gray-100">Hủy</button>
+          <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700">Lưu Đơn</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
+
