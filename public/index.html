@@ -4,132 +4,188 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Quản lý Đơn hàng & Mặt hàng</title>
+  <title>Hệ Thống Quản Lý Đơn Hàng & Doanh Thu</title>
+  <!-- Google Font Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+  </style>
 </head>
 
-<body class="bg-gray-100 text-gray-800 antialiased font-sans">
-  <div class="max-w-6xl mx-auto p-4 sm:p-6">
+<body class="bg-slate-50 text-slate-800 antialiased min-h-screen">
+  <div class="max-w-7xl mx-auto p-3 sm:p-6 lg:p-8 space-y-6">
     <!-- Header -->
-    <header class="flex flex-wrap items-center justify-between pb-4 border-b border-gray-200 gap-3">
+    <header class="bg-white/90 backdrop-blur-md sticky top-0 z-30 -mx-3 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-3.5 border-b border-slate-200/80 shadow-sm flex flex-wrap items-center justify-between gap-4">
       <div class="flex items-center gap-3">
-        <h1 class="text-xl font-bold tracking-tight">Hệ Thống Đơn Hàng</h1>
-        <span id="db-status-badge" class="text-xs px-2.5 py-0.5 rounded-full font-medium bg-gray-200 text-gray-700">
-          Đang kiểm tra...
-        </span>
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-violet-600 flex items-center justify-center text-white shadow-md shadow-indigo-500/25 text-lg font-bold">
+          📦
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-lg sm:text-xl font-extrabold tracking-tight text-slate-900">Quản Lý Đơn Hàng</h1>
+            <span id="db-status-badge" class="inline-flex items-center gap-1.5 text-xs px-2.5 py-0.5 rounded-full font-semibold bg-slate-100 text-slate-600 transition">
+              <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span> Đang kiểm tra...
+            </span>
+          </div>
+          <p class="text-[11px] text-slate-500 hidden sm:block">Theo dõi đơn hàng, mặt hàng và báo cáo doanh thu theo ngày</p>
+        </div>
       </div>
 
-      <nav class="flex space-x-1 bg-gray-200 p-1 rounded-lg">
+      <!-- Navigation Tabs -->
+      <nav class="flex space-x-1 bg-slate-100/90 p-1 rounded-xl border border-slate-200/70 overflow-x-auto no-scrollbar max-w-full">
         <button id="tab-orders-btn" onclick="switchTab('orders')"
-          class="px-4 py-1.5 text-sm font-medium rounded-md bg-white text-gray-900 shadow-sm">
-          Đơn Hàng
+          class="flex items-center gap-1.5 px-3.5 py-1.5 text-xs sm:text-sm font-bold rounded-lg bg-white text-indigo-700 shadow-sm transition-all duration-200 whitespace-nowrap">
+          <span>📋</span> Đơn Hàng
         </button>
         <button id="tab-revenue-btn" onclick="switchTab('revenue')"
-          class="px-4 py-1.5 text-sm font-medium rounded-md text-gray-600 hover:text-gray-900">
-          Doanh Thu Theo Ngày
+          class="flex items-center gap-1.5 px-3.5 py-1.5 text-xs sm:text-sm font-medium rounded-lg text-slate-600 hover:text-slate-900 hover:bg-white/60 transition-all duration-200 whitespace-nowrap">
+          <span>📈</span> Doanh Thu Theo Ngày
         </button>
         <button id="tab-products-btn" onclick="switchTab('products')"
-          class="px-4 py-1.5 text-sm font-medium rounded-md text-gray-600 hover:text-gray-900">
-          Mặt Hàng
+          class="flex items-center gap-1.5 px-3.5 py-1.5 text-xs sm:text-sm font-medium rounded-lg text-slate-600 hover:text-slate-900 hover:bg-white/60 transition-all duration-200 whitespace-nowrap">
+          <span>🏷️</span> Mặt Hàng
         </button>
       </nav>
     </header>
 
     <!-- TAB 1: ĐƠN HÀNG -->
-    <main id="tab-orders" class="mt-6 space-y-4">
-      <!-- Thống kê doanh thu -->
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div class="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-          <p class="text-xs font-medium text-gray-500 uppercase">Tổng doanh thu (Tất cả đơn)</p>
-          <p id="stat-total-revenue" class="text-lg font-bold text-gray-900 mt-1">0 ₫</p>
+    <main id="tab-orders" class="space-y-5">
+      <!-- Thống kê doanh thu (Stat Cards) -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3.5 sm:gap-4">
+        <!-- Card 1: Tổng doanh thu -->
+        <div class="group relative overflow-hidden bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-lg hover:border-indigo-300 hover:-translate-y-1 transition-all duration-300 bg-gradient-to-br from-white via-white to-indigo-50/30">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Tổng doanh thu</span>
+            <div class="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-base group-hover:scale-110 transition-transform">
+              💰
+            </div>
+          </div>
+          <p id="stat-total-revenue" class="text-xl sm:text-2xl font-extrabold text-slate-900 mt-2 tracking-tight">0 ₫</p>
+          <p class="text-[11px] text-slate-400 mt-1">Tất cả đơn (đã trừ đơn hủy)</p>
         </div>
-        <div class="bg-white p-4 rounded-lg border border-emerald-200 bg-emerald-50/30 shadow-sm">
-          <p class="text-xs font-medium text-emerald-700 uppercase">Doanh thu thực tế (Đã giao)</p>
-          <p id="stat-delivered-revenue" class="text-lg font-bold text-emerald-600 mt-1">0 ₫</p>
+
+        <!-- Card 2: Doanh thu thực tế -->
+        <div class="group relative overflow-hidden bg-white p-4 sm:p-5 rounded-2xl border border-emerald-200/70 shadow-sm hover:shadow-lg hover:border-emerald-300 hover:-translate-y-1 transition-all duration-300 bg-gradient-to-br from-white via-white to-emerald-50/40">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-emerald-700 uppercase tracking-wider">Doanh thu thực tế</span>
+            <div class="w-9 h-9 rounded-xl bg-emerald-100/70 text-emerald-700 flex items-center justify-center font-bold text-base group-hover:scale-110 transition-transform">
+              ✅
+            </div>
+          </div>
+          <p id="stat-delivered-revenue" class="text-xl sm:text-2xl font-extrabold text-emerald-600 mt-2 tracking-tight">0 ₫</p>
+          <p class="text-[11px] text-emerald-700/70 mt-1">Chỉ tính đơn đã giao thành công</p>
         </div>
-        <div class="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-          <p class="text-xs font-medium text-gray-500 uppercase">Tổng số đơn hàng</p>
-          <p id="stat-total-orders" class="text-lg font-bold text-blue-600 mt-1">0 đơn</p>
+
+        <!-- Card 3: Tổng số đơn -->
+        <div class="group relative overflow-hidden bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-lg hover:border-blue-300 hover:-translate-y-1 transition-all duration-300 bg-gradient-to-br from-white via-white to-blue-50/30">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Tổng đơn hàng</span>
+            <div class="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-base group-hover:scale-110 transition-transform">
+              🚚
+            </div>
+          </div>
+          <p id="stat-total-orders" class="text-xl sm:text-2xl font-extrabold text-blue-600 mt-2 tracking-tight">0 đơn</p>
+          <p class="text-[11px] text-slate-400 mt-1">Đang hoạt động trong hệ thống</p>
         </div>
       </div>
 
-      <div class="flex flex-wrap items-center justify-between gap-3">
-          <div class="flex items-center gap-3">
-            <!-- Chuyển chế độ xem: Bảng / Kanban -->
-            <div
-              class="inline-flex rounded-lg border border-gray-200 bg-gray-100 p-0.5 text-xs font-medium shadow-inner">
-              <button id="view-mode-table" type="button" onclick="setOrderViewMode('table')"
-                class="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-white text-gray-900 shadow-sm transition">
-                <span>📋</span> Bảng
-              </button>
-              <button id="view-mode-kanban" type="button" onclick="setOrderViewMode('kanban')"
-                class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-gray-600 hover:text-gray-900 transition">
-                <span>📊</span> Kanban
-              </button>
-            </div>
-
-            <div id="filter-status-wrapper" class="flex items-center gap-2">
-              <label class="text-xs font-semibold text-gray-500 uppercase">Lọc:</label>
-              <select id="filter-status" onchange="renderOrders()"
-                class="text-sm bg-white border border-gray-300 rounded px-2.5 py-1 focus:outline-none">
-                <option value="all">Tất cả trạng thái</option>
-                <option value="Chờ xử lý">Chờ xử lý</option>
-                <option value="Đang giao">Đang giao</option>
-                <option value="Đã giao">Đã giao</option>
-                <option value="Đã hủy">Đã hủy</option>
-              </select>
-            </div>
+      <!-- Action & View Controls Bar -->
+      <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3 sm:p-4 rounded-2xl border border-slate-200/80 shadow-sm">
+        <div class="flex flex-wrap items-center gap-3">
+          <!-- Chuyển chế độ xem: Bảng / Kanban -->
+          <div class="inline-flex rounded-xl border border-slate-200 bg-slate-100 p-1 text-xs font-bold shadow-inner">
+            <button id="view-mode-table" type="button" onclick="setOrderViewMode('table')"
+              class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white text-indigo-700 shadow-sm transition-all duration-200">
+              <span>📋</span> Bảng
+            </button>
+            <button id="view-mode-kanban" type="button" onclick="setOrderViewMode('kanban')"
+              class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 transition-all duration-200">
+              <span>📊</span> Kanban
+            </button>
           </div>
 
-          <button onclick="openOrderModal()"
-            class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium shadow-sm transition">
-            + Tạo đơn hàng
-          </button>
+          <!-- Lọc trạng thái -->
+          <div id="filter-status-wrapper" class="flex items-center gap-2">
+            <label class="text-xs font-bold text-slate-500 uppercase tracking-wide">Lọc:</label>
+            <select id="filter-status" onchange="renderOrders()"
+              class="text-xs sm:text-sm font-medium bg-slate-50 hover:bg-slate-100/80 border border-slate-300 rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition cursor-pointer">
+              <option value="all">Tất cả trạng thái</option>
+              <option value="Chờ xử lý">Chờ xử lý</option>
+              <option value="Đang giao">Đang giao</option>
+              <option value="Đã giao">Đã giao</option>
+              <option value="Đã hủy">Đã hủy</option>
+            </select>
+          </div>
         </div>
 
-          <!-- Bảng đơn hàng (Table View) -->
-          <div id="orders-table-container" class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-x-auto">
-            <table class="w-full text-left text-sm border-collapse">
-              <thead>
-                <tr class="bg-gray-50 border-b text-gray-600 uppercase text-xs">
-                  <th class="p-3">Mã</th>
-                  <th class="p-3">Khách hàng</th>
-                  <th class="p-3">Địa chỉ ship</th>
-                  <th class="p-3">Mặt hàng</th>
-                  <th class="p-3 text-right">Tiền ship</th>
-                  <th class="p-3 text-right">Tổng tiền</th>
-                  <th class="p-3">Trạng thái</th>
-                  <th class="p-3 text-center">Hành động</th>
-                </tr>
-              </thead>
-              <tbody id="orders-tbody" class="divide-y divide-gray-100">
-                <tr>
-                  <td colspan="8" class="p-6 text-center text-gray-400">Đang tải dữ liệu...</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+        <!-- Nút Tạo đơn hàng (CTA chính) -->
+        <button onclick="openOrderModal()"
+          class="flex items-center justify-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 hover:from-blue-500 hover:via-indigo-500 hover:to-violet-500 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md shadow-indigo-500/25 hover:shadow-lg hover:shadow-indigo-500/35 hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 cursor-pointer">
+          <span class="text-base font-extrabold leading-none">+</span> Tạo đơn hàng
+        </button>
+      </div>
 
-          <!-- Kanban Board (Kanban View) -->
-          <div id="orders-kanban-container" class="hidden">
-            <div id="kanban-board" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-start">
-              <!-- Rendered by JS -->
-            </div>
-          </div>
+      <!-- Bảng đơn hàng (Table View) -->
+      <div id="orders-table-container" class="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm border-collapse min-w-[700px]">
+            <thead>
+              <tr class="bg-slate-50/80 border-b border-slate-200 text-slate-600 uppercase text-[11px] font-bold tracking-wider">
+                <th class="p-3.5">Mã</th>
+                <th class="p-3.5">Khách hàng</th>
+                <th class="p-3.5">Địa chỉ ship</th>
+                <th class="p-3.5">Mặt hàng</th>
+                <th class="p-3.5 text-right">Tiền ship</th>
+                <th class="p-3.5 text-right">Tổng tiền</th>
+                <th class="p-3.5 text-center">Trạng thái</th>
+                <th class="p-3.5 text-center">Hành động</th>
+              </tr>
+            </thead>
+            <tbody id="orders-tbody" class="divide-y divide-slate-100">
+              <tr>
+                <td colspan="8" class="p-8 text-center text-slate-400">Đang tải dữ liệu...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Kanban Board (Kanban View) -->
+      <div id="orders-kanban-container" class="hidden">
+        <p class="text-xs text-slate-500 mb-2 flex items-center gap-1.5">
+          <span>💡</span> <span>Kéo thả thẻ giữa các cột để đổi trạng thái nhanh chóng (hoặc vuốt ngang để xem các cột trên điện thoại).</span>
+        </p>
+        <div id="kanban-board" class="flex lg:grid lg:grid-cols-4 gap-4 items-start overflow-x-auto pb-4 pt-1 snap-x snap-mandatory scroll-smooth no-scrollbar">
+          <!-- Rendered by JS -->
+        </div>
+      </div>
     </main>
 
     <!-- TAB 2: DOANH THU THEO NGÀY -->
-    <main id="tab-revenue" class="mt-6 space-y-4 hidden">
-      <div
-        class="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+    <main id="tab-revenue" class="space-y-5 hidden">
+      <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-200/80">
         <div>
-          <h2 class="text-base font-bold text-gray-800">Báo Cáo Doanh Thu Theo Ngày</h2>
-          <p class="text-xs text-gray-500">Tự động tổng hợp dữ liệu doanh thu dựa trên ngày tạo đơn</p>
+          <h2 class="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
+            <span>📊</span> Báo Cáo Doanh Thu Theo Ngày
+          </h2>
+          <p class="text-xs text-slate-500 mt-0.5">Tự động tổng hợp và nhóm dữ liệu đơn hàng theo từng ngày</p>
         </div>
         <div class="flex items-center gap-2">
-          <label class="text-xs font-semibold text-gray-500 uppercase">Lọc trạng thái:</label>
+          <label class="text-xs font-bold text-slate-500 uppercase tracking-wide">Lọc:</label>
           <select id="revenue-status-filter" onchange="renderDailyRevenue()"
-            class="text-sm bg-white border border-gray-300 rounded px-2.5 py-1.5 focus:outline-none">
+            class="text-xs sm:text-sm font-medium bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition cursor-pointer">
             <option value="delivered_only">Chỉ đơn Đã giao (Doanh thu thực)</option>
             <option value="exclude_cancelled">Tất cả trừ Đã hủy</option>
             <option value="all">Tất cả đơn hàng</option>
@@ -137,130 +193,139 @@
         </div>
       </div>
 
-      <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-x-auto">
-        <table class="w-full text-left text-sm border-collapse">
-          <thead>
-            <tr class="bg-gray-50 border-b text-gray-600 uppercase text-xs">
-              <th class="p-3">Ngày</th>
-              <th class="p-3 text-center">Số đơn</th>
-              <th class="p-3 text-right">Tiền hàng</th>
-              <th class="p-3 text-right">Tiền ship</th>
-              <th class="p-3 text-right">Tổng doanh thu</th>
-            </tr>
-          </thead>
-          <tbody id="daily-revenue-tbody" class="divide-y divide-gray-100">
-            <tr>
-              <td colspan="5" class="p-6 text-center text-gray-400">Đang tải dữ liệu...</td>
-            </tr>
-          </tbody>
-          <tfoot id="daily-revenue-tfoot" class="bg-gray-50 font-semibold text-sm border-t border-gray-200">
-            <!-- Rendered total summary -->
-          </tfoot>
-        </table>
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm border-collapse min-w-[650px]">
+            <thead>
+              <tr class="bg-slate-50/80 border-b border-slate-200 text-slate-600 uppercase text-[11px] font-bold tracking-wider">
+                <th class="p-3.5">Ngày</th>
+                <th class="p-3.5 text-center">Số đơn</th>
+                <th class="p-3.5 text-right">Tiền hàng</th>
+                <th class="p-3.5 text-right">Tiền ship</th>
+                <th class="p-3.5 text-right">Tổng doanh thu</th>
+              </tr>
+            </thead>
+            <tbody id="daily-revenue-tbody" class="divide-y divide-slate-100">
+              <tr>
+                <td colspan="5" class="p-8 text-center text-slate-400">Đang tải dữ liệu...</td>
+              </tr>
+            </tbody>
+            <tfoot id="daily-revenue-tfoot" class="bg-slate-50 font-bold text-sm border-t border-slate-200 text-slate-900">
+              <!-- Rendered total summary -->
+            </tfoot>
+          </table>
+        </div>
       </div>
     </main>
 
     <!-- TAB 3: MẶT HÀNG -->
-    <main id="tab-products" class="mt-6 space-y-4 hidden">
+    <main id="tab-products" class="space-y-5 hidden">
       <!-- Form thêm mặt hàng -->
       <form onsubmit="handleCreateProduct(event)"
-        class="bg-white p-4 rounded-lg shadow-sm border border-gray-200 flex flex-wrap gap-3 items-end">
-        <div class="flex-1 min-w-[200px]">
-          <label class="block text-xs font-medium text-gray-700 mb-1">Tên mặt hàng</label>
-          <input type="text" id="prod-name" required placeholder="Ví dụ: Áo phông"
-            class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500">
+        class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-200/80 flex flex-col sm:flex-row gap-3.5 items-stretch sm:items-end">
+        <div class="flex-1">
+          <label class="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wide">Tên mặt hàng *</label>
+          <input type="text" id="prod-name" required placeholder="Ví dụ: Áo phông oversize, Quần jeans..."
+            class="w-full border border-slate-300 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition">
         </div>
-        <div class="w-44">
-          <label class="block text-xs font-medium text-gray-700 mb-1">Giá (VNĐ)</label>
-          <input type="number" id="prod-price" min="0" required placeholder="100000"
-            class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500">
+        <div class="w-full sm:w-56">
+          <label class="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wide">Giá bán (VNĐ) *</label>
+          <input type="number" id="prod-price" min="0" step="1000" required placeholder="150000"
+            class="w-full border border-slate-300 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition">
         </div>
         <button type="submit"
-          class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-sm font-medium shadow-sm transition">
-          Thêm mặt hàng
+          class="flex items-center justify-center gap-2 px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md shadow-emerald-500/25 hover:shadow-lg hover:shadow-emerald-500/35 hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 cursor-pointer">
+          <span class="text-base font-extrabold leading-none">+</span> Thêm mặt hàng
         </button>
       </form>
 
       <!-- Bảng mặt hàng -->
-      <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-x-auto">
-        <table class="w-full text-left text-sm border-collapse">
-          <thead>
-            <tr class="bg-gray-50 border-b text-gray-600 uppercase text-xs">
-              <th class="p-3">ID</th>
-              <th class="p-3">Tên mặt hàng</th>
-              <th class="p-3 text-right">Đơn giá</th>
-              <th class="p-3 text-center w-24">Hành động</th>
-            </tr>
-          </thead>
-          <tbody id="products-tbody" class="divide-y divide-gray-100">
-            <tr>
-              <td colspan="4" class="p-6 text-center text-gray-400">Đang tải dữ liệu...</td>
-            </tr>
-          </tbody>
-        </table>
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm border-collapse min-w-[500px]">
+            <thead>
+              <tr class="bg-slate-50/80 border-b border-slate-200 text-slate-600 uppercase text-[11px] font-bold tracking-wider">
+                <th class="p-3.5">ID</th>
+                <th class="p-3.5">Tên mặt hàng</th>
+                <th class="p-3.5 text-right">Đơn giá</th>
+                <th class="p-3.5 text-center w-28">Hành động</th>
+              </tr>
+            </thead>
+            <tbody id="products-tbody" class="divide-y divide-slate-100">
+              <tr>
+                <td colspan="4" class="p-8 text-center text-slate-400">Đang tải dữ liệu...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </main>
   </div>
 
-  <!-- Modal Tạo Đơn Hàng -->
-  <div id="order-modal" class="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50 hidden">
-    <div class="bg-white rounded-xl shadow-xl w-full max-w-lg p-5 space-y-4">
-      <div class="flex justify-between items-center border-b pb-2">
-        <h2 class="text-base font-semibold">Tạo Đơn Hàng Mới</h2>
-        <button onclick="closeOrderModal()" class="text-gray-400 hover:text-gray-600 text-xl font-bold">&times;</button>
+  <!-- Modal Tạo Đơn Hàng (Modal backdrop & dialog) -->
+  <div id="order-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 z-50 hidden transition-opacity">
+    <div class="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-lg p-5 sm:p-6 space-y-4 max-h-[92vh] overflow-y-auto border border-slate-100 animate-in fade-in zoom-in-95 duration-200">
+      <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-sm">
+            📝
+          </div>
+          <h2 class="text-base sm:text-lg font-bold text-slate-900">Tạo Đơn Hàng Mới</h2>
+        </div>
+        <button onclick="closeOrderModal()" class="w-8 h-8 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-700 text-xl font-bold flex items-center justify-center transition">&times;</button>
       </div>
 
-      <form id="order-form" onsubmit="handleCreateOrder(event)" class="space-y-3">
+      <form id="order-form" onsubmit="handleCreateOrder(event)" class="space-y-4">
         <div>
-          <label class="block text-xs font-medium text-gray-700 mb-1">Số điện thoại khách *</label>
-          <input type="tel" id="order-phone" required placeholder="09xxxx..."
-            class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500">
+          <label class="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wide">Số điện thoại khách *</label>
+          <input type="tel" id="order-phone" required placeholder="Ví dụ: 0912345678"
+            class="w-full border border-slate-300 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition">
         </div>
 
         <div>
-          <label class="block text-xs font-medium text-gray-700 mb-1">Địa chỉ nhận hàng *</label>
-          <textarea id="order-address" required rows="2" placeholder="Số nhà, đường, quận/huyện..."
-            class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500"></textarea>
+          <label class="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wide">Địa chỉ nhận hàng *</label>
+          <textarea id="order-address" required rows="2" placeholder="Số nhà, ngõ/đường, phường/xã, quận/huyện, tỉnh/thành..."
+            class="w-full border border-slate-300 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition"></textarea>
         </div>
 
         <div>
-          <label class="block text-xs font-medium text-gray-700 mb-1">Tiền ship (VNĐ)</label>
+          <label class="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wide">Tiền ship (VNĐ)</label>
           <input type="number" id="order-shipping-fee" min="0" step="1000" value="0" placeholder="0"
-            class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500"
+            class="w-full border border-slate-300 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition font-mono"
             oninput="renderPendingItems()">
         </div>
 
         <!-- Chọn mặt hàng -->
-        <div class="border rounded-lg p-3 bg-gray-50 space-y-2">
-          <label class="block text-xs font-bold text-gray-700">Mặt hàng mua</label>
+        <div class="border border-slate-200 rounded-xl p-3.5 bg-slate-50/80 space-y-2.5">
+          <label class="block text-xs font-extrabold text-slate-700 uppercase tracking-wide">Thêm mặt hàng vào đơn</label>
           <div class="flex gap-2">
             <select id="modal-product-select"
-              class="flex-1 border border-gray-300 rounded px-2.5 py-1 text-sm bg-white focus:outline-none">
+              class="flex-1 border border-slate-300 rounded-xl px-3 py-2 text-xs sm:text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition">
               <!-- Rendered options -->
             </select>
             <input type="number" id="modal-product-qty" min="1" value="1"
-              class="w-16 border border-gray-300 rounded px-2 py-1 text-sm text-center">
+              class="w-16 border border-slate-300 rounded-xl px-2 py-2 text-xs sm:text-sm text-center font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
             <button type="button" onclick="addItemToOrder()"
-              class="px-3 py-1 bg-gray-800 text-white text-xs font-medium rounded hover:bg-black">
+              class="px-3.5 py-2 bg-slate-900 hover:bg-black text-white text-xs font-bold rounded-xl shadow-sm hover:shadow transition">
               + Thêm
             </button>
           </div>
 
           <!-- Danh sách mặt hàng đã thêm trong đơn này -->
-          <div id="modal-items-list" class="space-y-1 max-h-36 overflow-y-auto pt-1">
-            <p class="text-xs text-gray-400 italic">Chưa chọn mặt hàng nào</p>
+          <div id="modal-items-list" class="space-y-1.5 max-h-36 overflow-y-auto pt-1">
+            <p class="text-xs text-slate-400 italic">Chưa chọn mặt hàng nào</p>
           </div>
 
-          <div class="flex justify-between items-center pt-2 border-t text-sm font-semibold">
-            <span>Tổng tiền:</span>
-            <span id="modal-total-display" class="text-blue-600">0 ₫</span>
+          <div class="flex justify-between items-center pt-2.5 border-t border-slate-200 text-sm font-bold">
+            <span class="text-slate-600">Tổng thanh toán:</span>
+            <span id="modal-total-display" class="text-base text-blue-600 font-extrabold font-mono">0 ₫</span>
           </div>
         </div>
 
         <div>
-          <label class="block text-xs font-medium text-gray-700 mb-1">Trạng thái ban đầu</label>
+          <label class="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wide">Trạng thái ban đầu</label>
           <select id="order-status"
-            class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm bg-white focus:outline-none">
+            class="w-full border border-slate-300 rounded-xl px-3.5 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition font-medium">
             <option value="Chờ xử lý">Chờ xử lý</option>
             <option value="Đang giao">Đang giao</option>
             <option value="Đã giao">Đã giao</option>
@@ -268,11 +333,15 @@
           </select>
         </div>
 
-        <div class="flex justify-end gap-2 pt-2 border-t">
+        <div class="flex justify-end gap-2.5 pt-3 border-t border-slate-100">
           <button type="button" onclick="closeOrderModal()"
-            class="px-4 py-2 border rounded-md text-sm text-gray-700 hover:bg-gray-100">Hủy</button>
+            class="px-4 py-2.5 border border-slate-200 rounded-xl text-xs sm:text-sm font-bold text-slate-600 hover:bg-slate-100 transition cursor-pointer">
+            Hủy
+          </button>
           <button type="submit"
-            class="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700">Lưu Đơn</button>
+            class="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md shadow-indigo-500/25 hover:shadow-lg hover:shadow-indigo-500/35 hover:-translate-y-0.5 active:translate-y-0 transition-all cursor-pointer">
+            💾 Lưu Đơn Hàng
+          </button>
         </div>
       </form>
     </div>
