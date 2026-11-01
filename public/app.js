@@ -196,34 +196,38 @@ const KANBAN_COLUMNS = [
   {
     status: 'Chờ xử lý',
     title: 'Chờ xử lý',
+    shortTitle: 'Chờ',
     icon: '⏳',
     badgeClass: 'bg-amber-100 text-amber-900 border border-amber-300/80',
     dotColor: 'bg-amber-400',
-    topBorder: 'border-t-4 border-amber-400'
+    topBorder: 'border-t-2 sm:border-t-4 border-amber-400'
   },
   {
     status: 'Đang giao',
     title: 'Đang giao',
+    shortTitle: 'Giao',
     icon: '🚚',
     badgeClass: 'bg-sky-100 text-sky-900 border border-sky-300/80',
     dotColor: 'bg-sky-500',
-    topBorder: 'border-t-4 border-sky-500'
+    topBorder: 'border-t-2 sm:border-t-4 border-sky-500'
   },
   {
     status: 'Đã giao',
     title: 'Đã giao',
+    shortTitle: 'Xong',
     icon: '✅',
     badgeClass: 'bg-emerald-100 text-emerald-900 border border-emerald-300/80',
     dotColor: 'bg-emerald-500',
-    topBorder: 'border-t-4 border-emerald-500'
+    topBorder: 'border-t-2 sm:border-t-4 border-emerald-500'
   },
   {
     status: 'Đã hủy',
     title: 'Đã hủy',
+    shortTitle: 'Hủy',
     icon: '❌',
     badgeClass: 'bg-rose-100 text-rose-900 border border-rose-300/80',
     dotColor: 'bg-rose-400',
-    topBorder: 'border-t-4 border-rose-400'
+    topBorder: 'border-t-2 sm:border-t-4 border-rose-400'
   }
 ];
 
@@ -255,26 +259,27 @@ function renderKanban() {
             <div draggable="true"
                  ondragstart="handleKanbanDragStart(event, ${o.id})"
                  ondragend="handleKanbanDragEnd(event)"
-                 class="kanban-card group bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200/90 shadow-sm hover:shadow-md hover:border-indigo-300 hover:-translate-y-0.5 transition-all duration-200 cursor-grab active:cursor-grabbing space-y-2.5">
+                 class="kanban-card group bg-white p-1.5 sm:p-4 rounded-lg sm:rounded-xl border border-slate-200/90 shadow-sm hover:shadow-md hover:border-indigo-300 hover:-translate-y-0.5 transition-all duration-200 cursor-grab active:cursor-grabbing space-y-1 sm:space-y-2.5 min-w-0 overflow-hidden">
               
               <div class="flex items-center justify-between text-xs">
-                <span class="font-mono font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">#${o.id}</span>
-                <div class="flex items-center gap-1.5">
-                  <span class="text-slate-400 text-[11px] font-medium">${timeText}</span>
-                  <button type="button" onclick="handleDeleteOrder(${o.id})" title="Xóa đơn" class="text-slate-300 hover:text-rose-500 font-bold p-1 hover:bg-rose-50 rounded transition cursor-pointer">&times;</button>
+                <span class="font-mono font-bold text-slate-700 bg-slate-100 text-[10px] sm:text-xs px-1 sm:px-2 py-0.5 rounded-md border border-slate-200">#${o.id}</span>
+                <div class="flex items-center gap-1">
+                  <span class="text-slate-400 text-[10px] font-medium hidden sm:inline">${timeText}</span>
+                  <button type="button" onclick="handleDeleteOrder(${o.id})" title="Xóa đơn" class="text-slate-300 hover:text-rose-500 font-bold p-0.5 hover:bg-rose-50 rounded transition cursor-pointer text-xs">&times;</button>
                 </div>
               </div>
 
               <div>
-                <div class="text-sm font-bold text-slate-900 flex items-center gap-1.5">
-                  <span class="text-xs text-blue-500">📞</span> ${escapeHtml(o.customer_phone)}
+                <div class="text-[10px] sm:text-sm font-bold text-slate-900 flex items-center gap-1 truncate">
+                  <span class="text-[10px] text-blue-500 shrink-0">📞</span> <span class="truncate">${escapeHtml(o.customer_phone)}</span>
                 </div>
-                <div class="text-xs text-slate-500 line-clamp-2 mt-1" title="${escapeHtml(o.shipping_address)}">
-                  📍 ${escapeHtml(o.shipping_address)}
+                <div class="text-[9px] sm:text-xs text-slate-500 truncate mt-0.5" title="${escapeHtml(o.shipping_address)}">
+                  📍${escapeHtml(o.shipping_address)}
                 </div>
               </div>
 
-              <div class="bg-slate-50/80 rounded-xl p-2.5 text-xs text-slate-600 space-y-1.5 border border-slate-100">
+              <!-- Chi tiết mặt hàng (thu nhỏ trên mobile) -->
+              <div class="hidden sm:block bg-slate-50/80 rounded-xl p-2.5 text-xs text-slate-600 space-y-1.5 border border-slate-100">
                 ${items.map(it => `
                   <div class="flex justify-between items-center text-xs">
                     <span class="truncate max-w-[150px] font-semibold text-slate-800">${escapeHtml(it.product_name)} <span class="text-slate-400 font-normal">x${it.quantity}</span></span>
@@ -288,38 +293,44 @@ function renderKanban() {
                   </div>
                 ` : ''}
               </div>
+              <div class="sm:hidden bg-slate-50 rounded p-1 text-[9px] text-slate-600 font-medium truncate border border-slate-100" title="${escapeHtml(items.map(i=>`${i.product_name} x${i.quantity}`).join(', '))}">
+                📦 ${items.length} món
+              </div>
 
-              <div class="flex items-center justify-between pt-2 border-t border-slate-100">
+              <div class="pt-1 sm:pt-2 border-t border-slate-100 space-y-1">
                 <div>
-                  <span class="text-[10px] text-slate-400 uppercase font-bold block leading-none">Tổng cộng</span>
-                  <span class="text-sm font-extrabold text-indigo-600 font-mono">${formatCurrency(o.total_amount)}</span>
+                  <span class="text-[8px] sm:text-[10px] text-slate-400 uppercase font-bold hidden sm:block leading-none">Tổng cộng</span>
+                  <span class="text-[10px] sm:text-sm font-extrabold text-indigo-600 font-mono truncate block">${formatCurrency(o.total_amount)}</span>
                 </div>
-                <select onchange="handleUpdateStatus(${o.id}, this.value)" class="text-xs font-semibold rounded-lg px-2 py-1 bg-slate-50 hover:bg-white border border-slate-300 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer">
-                  <option value="Chờ xử lý" ${o.status === 'Chờ xử lý' ? 'selected' : ''}>Chờ xử lý</option>
-                  <option value="Đang giao" ${o.status === 'Đang giao' ? 'selected' : ''}>Đang giao</option>
-                  <option value="Đã giao" ${o.status === 'Đã giao' ? 'selected' : ''}>Đã giao</option>
-                  <option value="Đã hủy" ${o.status === 'Đã hủy' ? 'selected' : ''}>Đã hủy</option>
+                <select onchange="handleUpdateStatus(${o.id}, this.value)" class="w-full text-[9px] sm:text-xs font-semibold rounded px-1 py-0.5 bg-slate-50 hover:bg-white border border-slate-300 shadow-sm focus:outline-none focus:ring-1 focus:ring-indigo-500/20 cursor-pointer">
+                  <option value="Chờ xử lý" ${o.status === 'Chờ xử lý' ? 'selected' : ''}>⏳ Chờ</option>
+                  <option value="Đang giao" ${o.status === 'Đang giao' ? 'selected' : ''}>🚚 Giao</option>
+                  <option value="Đã giao" ${o.status === 'Đã giao' ? 'selected' : ''}>✅ Xong</option>
+                  <option value="Đã hủy" ${o.status === 'Đã hủy' ? 'selected' : ''}>❌ Hủy</option>
                 </select>
               </div>
             </div>
           `;
         }).join('')
-      : `<div class="h-32 border-2 border-dashed border-slate-200 rounded-xl flex flex-col items-center justify-center text-xs text-slate-400 gap-1 select-none">
-           <span>Kéo thả đơn vào đây</span>
+      : `<div class="h-16 sm:h-32 border-2 border-dashed border-slate-200 rounded-lg sm:rounded-xl flex flex-col items-center justify-center text-[9px] sm:text-xs text-slate-400 gap-0.5 select-none text-center p-1">
+           <span>Thả đơn</span>
          </div>`;
 
     return `
-      <div class="flex flex-col bg-slate-100/80 rounded-2xl p-3 sm:p-3.5 border border-slate-200/90 shadow-sm ${col.topBorder} min-w-[285px] sm:min-w-[320px] lg:min-w-0 w-full snap-start min-h-[520px]">
-        <div class="flex items-center justify-between pb-2.5 mb-2.5 border-b border-slate-200">
-          <div class="flex items-center gap-1.5">
-            <span class="text-base">${col.icon}</span>
-            <h3 class="font-extrabold text-sm text-slate-800">${col.title}</h3>
-            <span class="text-xs px-2 py-0.5 rounded-full font-extrabold ${col.badgeClass}">${colOrders.length}</span>
+      <div class="flex flex-col bg-slate-100/80 rounded-xl sm:rounded-2xl p-1 sm:p-3.5 border border-slate-200/90 shadow-sm ${col.topBorder} min-w-0 w-full min-h-[380px] sm:min-h-[520px]">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-0.5 sm:gap-1 pb-1 sm:pb-2.5 mb-1.5 sm:mb-2.5 border-b border-slate-200">
+          <div class="flex items-center gap-1 min-w-0">
+            <span class="text-xs sm:text-base shrink-0">${col.icon}</span>
+            <h3 class="font-extrabold text-[10px] sm:text-sm text-slate-800 truncate">
+              <span class="sm:hidden">${col.shortTitle}</span>
+              <span class="hidden sm:inline">${col.title}</span>
+            </h3>
+            <span class="text-[9px] sm:text-xs px-1 sm:px-2 py-0.2 rounded-full font-extrabold ${col.badgeClass} shrink-0">${colOrders.length}</span>
           </div>
-          <span class="text-xs font-bold text-slate-500 font-mono">${formatCurrency(colTotal)}</span>
+          <span class="text-[9px] sm:text-xs font-bold text-slate-500 font-mono truncate text-left sm:text-right">${formatCurrency(colTotal)}</span>
         </div>
 
-        <div class="kanban-dropzone flex-1 space-y-3 p-1 rounded-xl transition-colors min-h-[420px]"
+        <div class="kanban-dropzone flex-1 space-y-1.5 sm:space-y-3 p-0.5 sm:p-1 rounded-lg sm:rounded-xl transition-colors min-h-[320px] sm:min-h-[420px]"
              ondragover="handleKanbanDragOver(event)"
              ondragleave="handleKanbanDragLeave(event)"
              ondrop="handleKanbanDrop(event, '${col.status}')">
