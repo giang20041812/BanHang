@@ -13,8 +13,10 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_KEY;
+const rawSupabaseUrl = (process.env.SUPABASE_URL || '').trim();
+// Tự động loại bỏ /rest/v1 hoặc dấu gạch chéo cuối nếu người dùng dán nhầm REST URL
+const supabaseUrl = rawSupabaseUrl.replace(/\/rest\/v1\/?$/i, '').replace(/\/+$/, '');
+const supabaseKey = (process.env.SUPABASE_KEY || '').trim();
 
 const isSupabaseConfigured = Boolean(
   supabaseUrl &&
@@ -44,8 +46,9 @@ let memOrders = [
     id: 1,
     customer_phone: '0912345678',
     shipping_address: '123 Cầu Giấy, Hà Nội',
+    shipping_fee: 30000,
     status: 'Chờ xử lý',
-    total_amount: 470000,
+    total_amount: 500000,
     created_at: new Date().toISOString(),
     order_items: [
       { id: 1, order_id: 1, product_name: 'Áo thun cotton', price: 150000, quantity: 1 },
@@ -146,7 +149,7 @@ app.get('/api/orders', async (req, res) => {
 // Tạo đơn hàng
 app.post('/api/orders', async (req, res) => {
   try {
-    const { customer_phone, shipping_address, status = 'Chờ xử lý', items = [] } = req.body;
+    const { customer_phone, shipping_address, shipping_fee = 0, status = 'Chờ xử lý', items = [] } = req.body;
     if (!customer_phone || !shipping_address) {
       return res.status(400).json({ error: 'Vui lòng nhập SĐT và địa chỉ nhận hàng' });
     }
@@ -154,10 +157,12 @@ app.post('/api/orders', async (req, res) => {
       return res.status(400).json({ error: 'Đơn hàng phải có ít nhất 1 mặt hàng' });
     }
 
-    const total_amount = items.reduce(
+    const shipFee = Math.max(0, Number(shipping_fee) || 0);
+    const itemsTotal = items.reduce(
       (sum, item) => sum + (Number(item.price) || 0) * (Number(item.quantity) || 1),
       0
     );
+    const total_amount = itemsTotal + shipFee;
 
     if (isSupabaseConfigured) {
       const { data: order, error: orderErr } = await supabase
@@ -165,6 +170,7 @@ app.post('/api/orders', async (req, res) => {
         .insert([{
           customer_phone: customer_phone.trim(),
           shipping_address: shipping_address.trim(),
+          shipping_fee: shipFee,
           status,
           total_amount
         }])
@@ -198,6 +204,7 @@ app.post('/api/orders', async (req, res) => {
       id: Date.now(),
       customer_phone: customer_phone.trim(),
       shipping_address: shipping_address.trim(),
+      shipping_fee: shipFee,
       status,
       total_amount,
       created_at: new Date().toISOString(),

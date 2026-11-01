@@ -94,7 +94,10 @@ async function handleCreateProduct(e) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, price })
     });
-    if (!res.ok) throw new Error('Không thể thêm mặt hàng');
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Không thể thêm mặt hàng');
+    }
     nameInput.value = '';
     priceInput.value = '';
     await loadProducts();
@@ -107,7 +110,10 @@ async function handleDeleteProduct(id) {
   if (!confirm('Xác nhận xóa mặt hàng này?')) return;
   try {
     const res = await fetch(`/api/products/${id}`, { method: 'DELETE' });
-    if (!res.ok) throw new Error('Không thể xóa mặt hàng');
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Không thể xóa mặt hàng');
+    }
     await loadProducts();
   } catch (err) {
     alert(err.message);
@@ -134,7 +140,7 @@ function renderOrders() {
     : orders.filter(o => o.status === filter);
 
   if (!filteredOrders.length) {
-    tbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-gray-400">Không có đơn hàng nào.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="p-6 text-center text-gray-400">Không có đơn hàng nào.</td></tr>`;
     return;
   }
 
@@ -150,6 +156,7 @@ function renderOrders() {
         <td class="p-3 font-medium text-gray-900 text-sm whitespace-nowrap">${escapeHtml(o.customer_phone)}</td>
         <td class="p-3 text-xs text-gray-600 max-w-xs break-words">${escapeHtml(o.shipping_address)}</td>
         <td class="p-3">${itemsText}</td>
+        <td class="p-3 text-right text-xs text-gray-600 whitespace-nowrap font-medium">${formatCurrency(o.shipping_fee || 0)}</td>
         <td class="p-3 text-right font-bold text-sm text-blue-600 whitespace-nowrap">${formatCurrency(o.total_amount)}</td>
         <td class="p-3 whitespace-nowrap">
           <select onchange="handleUpdateStatus(${o.id}, this.value)" class="text-xs font-medium rounded px-2 py-1 border ${getStatusBadgeClass(o.status)}">
@@ -272,32 +279,33 @@ function removeItemFromOrder(idx) {
 function renderPendingItems() {
   const list = document.getElementById('modal-items-list');
   const totalDisplay = document.getElementById('modal-total-display');
+  const shipFeeInput = document.getElementById('order-shipping-fee');
+  const shipFee = Number(shipFeeInput ? shipFeeInput.value : 0) || 0;
 
+  let itemsSubtotal = 0;
   if (!pendingOrderItems.length) {
     list.innerHTML = '<p class="text-xs text-gray-400 italic">Chưa chọn mặt hàng nào</p>';
-    totalDisplay.textContent = '0 ₫';
-    return;
+  } else {
+    list.innerHTML = pendingOrderItems.map((item, idx) => {
+      const subtotal = item.price * item.quantity;
+      itemsSubtotal += subtotal;
+      return `
+        <div class="flex items-center justify-between text-xs bg-white p-2 rounded border border-gray-200">
+          <div>
+            <span class="font-medium text-gray-800">${escapeHtml(item.product_name)}</span>
+            <span class="text-gray-400"> x${item.quantity}</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="font-semibold text-gray-700">${formatCurrency(subtotal)}</span>
+            <button type="button" onclick="removeItemFromOrder(${idx})" class="text-rose-500 hover:text-rose-700 font-bold">&times;</button>
+          </div>
+        </div>
+      `;
+    }).join('');
   }
 
-  let total = 0;
-  list.innerHTML = pendingOrderItems.map((item, idx) => {
-    const subtotal = item.price * item.quantity;
-    total += subtotal;
-    return `
-      <div class="flex items-center justify-between text-xs bg-white p-2 rounded border border-gray-200">
-        <div>
-          <span class="font-medium text-gray-800">${escapeHtml(item.product_name)}</span>
-          <span class="text-gray-400"> x${item.quantity}</span>
-        </div>
-        <div class="flex items-center gap-2">
-          <span class="font-semibold text-gray-700">${formatCurrency(subtotal)}</span>
-          <button type="button" onclick="removeItemFromOrder(${idx})" class="text-rose-500 hover:text-rose-700 font-bold">&times;</button>
-        </div>
-      </div>
-    `;
-  }).join('');
-
-  totalDisplay.textContent = formatCurrency(total);
+  const grandTotal = itemsSubtotal + shipFee;
+  totalDisplay.textContent = formatCurrency(grandTotal);
 }
 
 async function handleCreateOrder(e) {
@@ -309,6 +317,8 @@ async function handleCreateOrder(e) {
 
   const phone = document.getElementById('order-phone').value.trim();
   const address = document.getElementById('order-address').value.trim();
+  const shipFeeInput = document.getElementById('order-shipping-fee');
+  const shippingFee = Number(shipFeeInput ? shipFeeInput.value : 0) || 0;
   const status = document.getElementById('order-status').value;
 
   try {
@@ -318,6 +328,7 @@ async function handleCreateOrder(e) {
       body: JSON.stringify({
         customer_phone: phone,
         shipping_address: address,
+        shipping_fee: shippingFee,
         status: status,
         items: pendingOrderItems
       })
