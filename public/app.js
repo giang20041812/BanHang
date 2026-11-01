@@ -233,6 +233,124 @@ const KANBAN_COLUMNS = [
 
 let draggedOrderId = null;
 
+// Hàm tính trạng thái liền kề để chuyển nhanh 1 chạm (◀ / ▶)
+function getAdjacentStatuses(currentStatus) {
+  switch (currentStatus) {
+    case 'Chờ xử lý':
+      return { prev: null, next: 'Đang giao' };
+    case 'Đang giao':
+      return { prev: 'Chờ xử lý', next: 'Đã giao' };
+    case 'Đã giao':
+      return { prev: 'Đang giao', next: null };
+    case 'Đã hủy':
+      return { prev: null, next: 'Chờ xử lý' };
+    default:
+      return { prev: null, next: null };
+  }
+}
+
+// Chuyển trạng thái 1 chạm siêu nhanh (đặc biệt tiện trên điện thoại)
+async function handleQuickMove(orderId, targetStatus) {
+  if (!orderId || !targetStatus) return;
+  await handleUpdateStatus(orderId, targetStatus);
+}
+
+// Xử lý kéo thả bằng ngón tay (Touch Events) cho màn hình cảm ứng di động
+let touchGhost = null;
+let touchDragOrderId = null;
+let activeTouchDropzone = null;
+let touchStartX = 0;
+let touchStartY = 0;
+let isTouchDragging = false;
+
+function setupTouchDrag(cardEl, orderId) {
+  cardEl.addEventListener('touchstart', (e) => {
+    // Không drag nếu người dùng bấm vào các nút hoặc thẻ select
+    if (e.target.closest('button, select, input, a')) return;
+
+    const touch = e.touches[0];
+    touchStartX = touch.clientX;
+    touchStartY = touch.clientY;
+    touchDragOrderId = orderId;
+    isTouchDragging = false;
+  }, { passive: true });
+
+  cardEl.addEventListener('touchmove', (e) => {
+    if (!touchDragOrderId) return;
+    const touch = e.touches[0];
+    const dx = touch.clientX - touchStartX;
+    const dy = touch.clientY - touchStartY;
+
+    // Chỉ bắt đầu kéo khi di chuyển ngón tay hơn 7px
+    if (!isTouchDragging && (Math.abs(dx) > 7 || Math.abs(dy) > 7)) {
+      isTouchDragging = true;
+      touchGhost = cardEl.cloneNode(true);
+      touchGhost.style.position = 'fixed';
+      touchGhost.style.width = Math.min(cardEl.offsetWidth, 160) + 'px';
+      touchGhost.style.left = (touch.clientX - 40) + 'px';
+      touchGhost.style.top = (touch.clientY - 30) + 'px';
+      touchGhost.style.pointerEvents = 'none';
+      touchGhost.style.zIndex = '9999';
+      touchGhost.style.opacity = '0.9';
+      touchGhost.style.transform = 'scale(1.05) rotate(2deg)';
+      touchGhost.style.boxShadow = '0 15px 30px rgba(0,0,0,0.3)';
+      document.body.appendChild(touchGhost);
+      cardEl.classList.add('opacity-30');
+    }
+
+    if (isTouchDragging && touchGhost) {
+      if (e.cancelable) e.preventDefault();
+
+      touchGhost.style.left = (touch.clientX - 40) + 'px';
+      touchGhost.style.top = (touch.clientY - 30) + 'px';
+
+      const elemBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+      const dropzone = elemBelow ? elemBelow.closest('.kanban-dropzone') : null;
+
+      if (activeTouchDropzone !== dropzone) {
+        if (activeTouchDropzone) {
+          activeTouchDropzone.classList.remove('bg-indigo-100/70', 'ring-2', 'ring-indigo-400');
+        }
+        activeTouchDropzone = dropzone;
+        if (activeTouchDropzone) {
+          activeTouchDropzone.classList.add('bg-indigo-100/70', 'ring-2', 'ring-indigo-400');
+        }
+      }
+    }
+  }, { passive: false });
+
+  const endHandler = async () => {
+    if (touchGhost) {
+      touchGhost.remove();
+      touchGhost = null;
+    }
+    cardEl.classList.remove('opacity-30');
+
+    if (isTouchDragging && activeTouchDropzone) {
+      const targetStatus = activeTouchDropzone.getAttribute('data-status');
+      activeTouchDropzone.classList.remove('bg-indigo-100/70', 'ring-2', 'ring-indigo-400');
+      activeTouchDropzone = null;
+
+      if (targetStatus && touchDragOrderId) {
+        const order = orders.find(o => o.id === touchDragOrderId);
+        if (order && order.status !== targetStatus) {
+          await handleUpdateStatus(touchDragOrderId, targetStatus);
+        }
+      }
+    }
+
+    if (activeTouchDropzone) {
+      activeTouchDropzone.classList.remove('bg-indigo-100/70', 'ring-2', 'ring-indigo-400');
+      activeTouchDropzone = null;
+    }
+    touchDragOrderId = null;
+    isTouchDragging = false;
+  };
+
+  cardEl.addEventListener('touchend', endHandler, { passive: true });
+  cardEl.addEventListener('touchcancel', endHandler, { passive: true });
+}
+
 function renderKanban() {
   const container = document.getElementById('kanban-board');
   if (!container) return;
@@ -254,12 +372,14 @@ function renderKanban() {
         const timeText = date && !isNaN(date.getTime())
           ? `${date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} ${date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}`
           : '';
+        const { prev: prevStatus, next: nextStatus } = getAdjacentStatuses(o.status);
 
         return `
             <div draggable="true"
+                 data-order-id="${o.id}"
                  ondragstart="handleKanbanDragStart(event, ${o.id})"
                  ondragend="handleKanbanDragEnd(event)"
-                 class="kanban-card group bg-white p-1.5 sm:p-4 rounded-lg sm:rounded-xl border border-slate-200/90 shadow-sm hover:shadow-md hover:border-indigo-300 hover:-translate-y-0.5 transition-all duration-200 cursor-grab active:cursor-grabbing space-y-1 sm:space-y-2.5 min-w-0 overflow-hidden">
+                 class="kanban-card group bg-white p-1.5 sm:p-3.5 rounded-lg sm:rounded-xl border border-slate-200/90 shadow-sm hover:shadow-md hover:border-indigo-300 hover:-translate-y-0.5 transition-all duration-200 cursor-grab active:cursor-grabbing space-y-1 sm:space-y-2 min-w-0 overflow-hidden select-none">
               
               <div class="flex items-center justify-between text-xs">
                 <span class="font-mono font-bold text-slate-700 bg-slate-100 text-[10px] sm:text-xs px-1 sm:px-2 py-0.5 rounded-md border border-slate-200">#${o.id}</span>
@@ -298,11 +418,36 @@ function renderKanban() {
                 📦 ${items.length} món
               </div>
 
-              <div class="pt-1 sm:pt-2 border-t border-slate-100 space-y-1">
-                <div>
-                  <span class="text-[8px] sm:text-[10px] text-slate-400 uppercase font-bold hidden sm:block leading-none">Tổng cộng</span>
-                  <span class="text-[10px] sm:text-sm font-extrabold text-indigo-600 font-mono truncate block">${formatCurrency(o.total_amount)}</span>
+              <!-- Thanh chuyển trạng thái nhanh 1 chạm (◀ / ▶) -->
+              <div class="pt-1 sm:pt-1.5 border-t border-slate-100 space-y-1">
+                <div class="flex items-center justify-between gap-1">
+                  ${prevStatus ? `
+                    <button type="button" onclick="handleQuickMove(${o.id}, '${prevStatus}')" 
+                      class="px-1 sm:px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold active:scale-95 transition cursor-pointer" 
+                      title="Lùi về ${prevStatus}">
+                      ◀
+                    </button>
+                  ` : '<span class="w-4"></span>'}
+
+                  <div class="text-[10px] sm:text-xs font-extrabold text-indigo-600 font-mono truncate text-center flex-1">
+                    ${formatCurrency(o.total_amount)}
+                  </div>
+
+                  ${nextStatus ? `
+                    <button type="button" onclick="handleQuickMove(${o.id}, '${nextStatus}')" 
+                      class="px-1 sm:px-1.5 py-0.5 rounded bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold shadow-sm active:scale-95 transition cursor-pointer" 
+                      title="Chuyển sang ${nextStatus}">
+                      ▶
+                    </button>
+                  ` : (o.status === 'Đã hủy' ? `
+                    <button type="button" onclick="handleQuickMove(${o.id}, 'Chờ xử lý')" 
+                      class="px-1 sm:px-1.5 py-0.5 rounded bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-bold shadow-sm active:scale-95 transition cursor-pointer" 
+                      title="Khôi phục về Chờ xử lý">
+                      ↩
+                    </button>
+                  ` : '<span class="w-4"></span>')}
                 </div>
+
                 <select onchange="handleUpdateStatus(${o.id}, this.value)" class="w-full text-[9px] sm:text-xs font-semibold rounded px-1 py-0.5 bg-slate-50 hover:bg-white border border-slate-300 shadow-sm focus:outline-none focus:ring-1 focus:ring-indigo-500/20 cursor-pointer">
                   <option value="Chờ xử lý" ${o.status === 'Chờ xử lý' ? 'selected' : ''}>⏳ Chờ</option>
                   <option value="Đang giao" ${o.status === 'Đang giao' ? 'selected' : ''}>🚚 Giao</option>
@@ -332,6 +477,7 @@ function renderKanban() {
         </div>
 
         <div class="kanban-dropzone flex-1 space-y-1.5 sm:space-y-3 p-0.5 sm:p-1 rounded-lg sm:rounded-xl transition-colors min-h-[320px] sm:min-h-[420px]"
+             data-status="${col.status}"
              ondragover="handleKanbanDragOver(event)"
              ondragleave="handleKanbanDragLeave(event)"
              ondrop="handleKanbanDrop(event, '${col.status}')">
@@ -340,6 +486,14 @@ function renderKanban() {
       </div>
     `;
   }).join('');
+
+  // Kích hoạt touch drag & drop cho màn hình cảm ứng di động
+  container.querySelectorAll('.kanban-card').forEach(cardEl => {
+    const orderId = Number(cardEl.getAttribute('data-order-id'));
+    if (orderId) {
+      setupTouchDrag(cardEl, orderId);
+    }
+  });
 }
 
 function handleKanbanDragStart(e, orderId) {
