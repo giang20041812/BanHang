@@ -22,7 +22,6 @@ function clearAuth() {
 function handleUnauthorized() {
   clearAuth();
   showAuthScreen();
-  showAuthAlert('Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.', 'error');
 }
 
 async function authFetch(url, options = {}) {
@@ -34,7 +33,7 @@ async function authFetch(url, options = {}) {
   const res = await fetch(url, { ...options, headers });
   if (res.status === 401) {
     handleUnauthorized();
-    throw new Error('Chưa đăng nhập hoặc phiên làm việc đã hết hạn');
+    throw new Error('Chưa đăng nhập');
   }
   return res;
 }
@@ -60,13 +59,7 @@ function switchAuthTab(tab) {
   }
 }
 
-function fillDemoAccount() {
-  const uInput = document.getElementById('login-username');
-  const pInput = document.getElementById('login-password');
-  if (uInput) uInput.value = 'vinh';
-  if (pInput) pInput.value = '123456';
-  showAuthAlert('Đã điền tài khoản: vinh / 123456. Nhấn Đăng Nhập để vào ngay!', 'info');
-}
+
 
 function showAuthAlert(msg, type = 'error') {
   const alertBox = document.getElementById('auth-alert');
@@ -226,7 +219,7 @@ async function checkAuth() {
     const res = await fetch('/api/auth/me', {
       headers: { 'Authorization': 'Bearer ' + token }
     });
-    if (!res.ok) throw new Error('Phiên hết hạn');
+    if (!res.ok) throw new Error('Chưa đăng nhập');
     const data = await res.json();
     currentUser = data.user;
     showAppScreen(currentUser);

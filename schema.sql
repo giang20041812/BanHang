@@ -99,8 +99,18 @@ alter table products enable row level security;
 alter table orders enable row level security;
 alter table order_items enable row level security;
 
+-- Xóa policy cũ nếu đã tồn tại trước khi tạo mới để tránh lỗi trùng lặp (ERROR: 42710)
+drop policy if exists "Cho phép toàn quyền users" on users;
 create policy "Cho phép toàn quyền users" on users for all using (true) with check (true);
+
+drop policy if exists "Cho phép toàn quyền sales_batches" on sales_batches;
 create policy "Cho phép toàn quyền sales_batches" on sales_batches for all using (true) with check (true);
+
+drop policy if exists "Cho phép toàn quyền products" on products;
 create policy "Cho phép toàn quyền products" on products for all using (true) with check (true);
+
+drop policy if exists "Cho phép toàn quyền orders" on orders;
 create policy "Cho phép toàn quyền orders" on orders for all using (true) with check (true);
+
+drop policy if exists "Cho phép toàn quyền order_items" on order_items;
 create policy "Cho phép toàn quyền order_items" on order_items for all using (true) with check (true);

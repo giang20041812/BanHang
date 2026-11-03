@@ -34,8 +34,28 @@ if (isSupabaseConfigured) {
   }
 }
 
-// Lưu trữ phiên đăng nhập trong bộ nhớ (token -> user)
-const sessions = new Map();
+// Cơ chế mã hóa token vĩnh viễn (Stateless - không bao giờ hết hạn, không bị mất khi restart server)
+const AUTH_SECRET = process.env.AUTH_SECRET || 'order_mgr_permanent_secret_key_2026';
+
+function createToken(user) {
+  const payload = Buffer.from(JSON.stringify({ id: user.id, username: user.username })).toString('base64url');
+  const signature = crypto.createHmac('sha256', AUTH_SECRET).update(payload).digest('base64url');
+  return `${payload}.${signature}`;
+}
+
+function verifyToken(token) {
+  if (!token || typeof token !== 'string') return null;
+  const parts = token.split('.');
+  if (parts.length !== 2) return null;
+  const [payload, signature] = parts;
+  const expectedSig = crypto.createHmac('sha256', AUTH_SECRET).update(payload).digest('base64url');
+  if (signature !== expectedSig) return null;
+  try {
+    return JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+  } catch {
+    return null;
+  }
+}
 
 // Bộ nhớ tạm fallback nếu chưa cấu hình Supabase
 let memUsers = [
@@ -156,16 +176,17 @@ if (isSupabaseConfigured) {
   migrateSupabaseData();
 }
 
-// Middleware xác thực người dùng
+// Middleware xác thực người dùng (xác thực vĩnh viễn)
 function requireAuth(req, res, next) {
   const authHeader = req.headers['authorization'] || '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : (req.query.token || '');
 
-  if (!token || !sessions.has(token)) {
-    return res.status(401).json({ error: 'Phiên đăng nhập đã hết hạn hoặc chưa đăng nhập' });
+  const user = verifyToken(token);
+  if (!user) {
+    return res.status(401).json({ error: 'Chưa đăng nhập' });
   }
 
-  req.user = sessions.get(token);
+  req.user = user;
   next();
 }
 
@@ -221,9 +242,8 @@ app.post('/api/auth/register', async (req, res) => {
         .from('sales_batches')
         .insert([{ user_id: newUser.id, name: 'Đợt bán số 1', status: 'active' }]);
 
-      const token = crypto.randomBytes(32).toString('hex');
       const userInfo = { id: newUser.id, username: newUser.username };
-      sessions.set(token, userInfo);
+      const token = createToken(userInfo);
 
       return res.status(201).json({
         message: 'Đăng ký thành công',
@@ -255,9 +275,8 @@ app.post('/api/auth/register', async (req, res) => {
       created_at: new Date().toISOString()
     });
 
-    const token = crypto.randomBytes(32).toString('hex');
     const userInfo = { id: newUser.id, username: newUser.username };
-    sessions.set(token, userInfo);
+    const token = createToken(userInfo);
 
     res.status(201).json({
       message: 'Đăng ký thành công',
@@ -292,9 +311,8 @@ app.post('/api/auth/login', async (req, res) => {
         return res.status(401).json({ error: 'Tên đăng nhập hoặc mật khẩu không chính xác' });
       }
 
-      const token = crypto.randomBytes(32).toString('hex');
       const userInfo = { id: user.id, username: user.username };
-      sessions.set(token, userInfo);
+      const token = createToken(userInfo);
 
       return res.json({
         message: 'Đăng nhập thành công',
@@ -312,9 +330,8 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(401).json({ error: 'Tên đăng nhập hoặc mật khẩu không chính xác' });
     }
 
-    const token = crypto.randomBytes(32).toString('hex');
     const userInfo = { id: user.id, username: user.username };
-    sessions.set(token, userInfo);
+    const token = createToken(userInfo);
 
     res.json({
       message: 'Đăng nhập thành công',
@@ -333,11 +350,6 @@ app.get('/api/auth/me', requireAuth, (req, res) => {
 
 // Đăng xuất
 app.post('/api/auth/logout', (req, res) => {
-  const authHeader = req.headers['authorization'] || '';
-  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : (req.body.token || '');
-  if (token) {
-    sessions.delete(token);
-  }
   res.json({ success: true, message: 'Đăng xuất thành công' });
 });
 
