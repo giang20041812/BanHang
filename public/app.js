@@ -256,11 +256,16 @@ async function loadBatches() {
 
     // Nếu chưa chọn đợt hoặc đợt đã lưu không tồn tại
     const exists = batches.some(b => String(b.id) === String(selectedBatchId));
-    if (!exists && batches.length > 0) {
-      // Ưu tiên chọn đợt đang mở bán (active) đầu tiên
-      const activeBatch = batches.find(b => b.status === 'active') || batches[0];
-      selectedBatchId = String(activeBatch.id);
-      localStorage.setItem('selected_batch_id', selectedBatchId);
+    if (!exists) {
+      if (batches.length > 0) {
+        // Ưu tiên chọn đợt đang mở bán (active) đầu tiên
+        const activeBatch = batches.find(b => b.status === 'active') || batches[0];
+        selectedBatchId = String(activeBatch.id);
+        localStorage.setItem('selected_batch_id', selectedBatchId);
+      } else {
+        selectedBatchId = null;
+        localStorage.removeItem('selected_batch_id');
+      }
     }
 
     renderBatchSelector();
@@ -493,9 +498,12 @@ async function handleDeleteBatch(batchId) {
 function openCreateBatchModal(copyFromId = null) {
   const form = document.getElementById('batch-form');
   if (form) form.reset();
-  document.getElementById('batch-form-id').value = '';
-  document.getElementById('batch-name').value = '';
-  document.getElementById('batch-status').value = 'active';
+  const formId = document.getElementById('batch-form-id');
+  if (formId) formId.value = '';
+  const nameEl = document.getElementById('batch-name');
+  if (nameEl) nameEl.value = '';
+  const statusEl = document.getElementById('batch-status');
+  if (statusEl) statusEl.value = 'active';
 
   // Render options copy thực đơn
   const copySelect = document.getElementById('batch-copy-from-select');
@@ -522,6 +530,13 @@ async function handleSaveBatch(e) {
     return;
   }
 
+  const submitBtn = document.getElementById('modal-batch-submit-btn');
+  const originText = submitBtn ? submitBtn.innerHTML : '';
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '⏳ Đang khởi tạo...';
+  }
+
   try {
     const res = await authFetch('/api/batches', {
       method: 'POST',
@@ -546,6 +561,11 @@ async function handleSaveBatch(e) {
     }
   } catch (err) {
     alert(err.message);
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = originText;
+    }
   }
 }
 
@@ -710,6 +730,8 @@ async function handleCreateProduct(e) {
 
   if (!name || isNaN(price)) return;
 
+  const targetBatch = (selectedBatchId && selectedBatchId !== 'all') ? Number(selectedBatchId) : null;
+
   try {
     const res = await authFetch('/api/products', {
       method: 'POST',
@@ -717,17 +739,25 @@ async function handleCreateProduct(e) {
       body: JSON.stringify({
         name,
         price,
-        batch_id: (selectedBatchId && selectedBatchId !== 'all') ? Number(selectedBatchId) : null
+        batch_id: targetBatch
       })
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error || 'Không thể thêm mặt hàng');
     }
+    const createdProduct = await res.json();
     nameInput.value = '';
     priceInput.value = '';
+
+    // Nếu trước đó chưa chọn đợt nào, cập nhật theo batch_id của món vừa tạo
+    if ((!selectedBatchId || selectedBatchId === 'all') && createdProduct.batch_id) {
+      selectedBatchId = String(createdProduct.batch_id);
+      localStorage.setItem('selected_batch_id', selectedBatchId);
+    }
+
+    await loadBatches();
     await loadProducts();
-    loadBatches();
   } catch (err) {
     alert(err.message);
   }
@@ -1751,6 +1781,7 @@ async function handleSaveOrder(e) {
   const status = document.getElementById('order-status').value;
 
   const payload = {
+    batch_id: (selectedBatchId && selectedBatchId !== 'all') ? Number(selectedBatchId) : null,
     customer_name: customerName,
     customer_phone: phone,
     shipping_address: address,

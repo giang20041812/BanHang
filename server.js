@@ -12,7 +12,15 @@ const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), {
+  etag: false,
+  lastModified: false,
+  setHeaders: (res) => {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+  }
+}));
 
 const rawSupabaseUrl = (process.env.SUPABASE_URL || '').trim();
 const supabaseUrl = rawSupabaseUrl.replace(/\/rest\/v1\/?$/i, '').replace(/\/+$/, '');
@@ -355,52 +363,132 @@ app.post('/api/auth/logout', (req, res) => {
 
 // ================= ĐỢT BÁN HÀNG (SALES BATCHES) =================
 
-  // Lấy danh sách đợt bán hàng kèm thống kê
-  app.get('/api/batches', requireAuth, async (req, res) => {
-    try {
-      if (isSupabaseConfigured) {
-        const { data: batches, error: batchErr } = await supabase
+// Hàm tìm hoặc tạo batch_id hợp lệ cho người dùng (tránh lỗi foreign key constraint)
+async function resolveBatchId(userId, requestedBatchId) {
+  if (isSupabaseConfigured) {
+    if (requestedBatchId) {
+      const { data: b } = await supabase
+        .from('sales_batches')
+        .select('id')
+        .eq('id', requestedBatchId)
+        .eq('user_id', userId)
+        .maybeSingle();
+      if (b && b.id) return b.id;
+    }
+
+    // Nếu không khớp hoặc không gửi lên, ưu tiên đợt đang active
+    let { data: activeBatch } = await supabase
+      .from('sales_batches')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('status', 'active')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (activeBatch && activeBatch.id) return activeBatch.id;
+
+    // Nếu không có active, lấy đợt bất kỳ của user
+    let { data: anyBatch } = await supabase
+      .from('sales_batches')
+      .select('id')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (anyBatch && anyBatch.id) return anyBatch.id;
+
+    // Nếu người dùng chưa có bất kỳ đợt nào, tự động tạo "Đợt bán số 1"
+    const { data: newBatch, error: createErr } = await supabase
+      .from('sales_batches')
+      .insert([{ user_id: userId, name: 'Đợt bán số 1', status: 'active' }])
+      .select()
+      .single();
+
+    if (createErr) {
+      console.error('Lỗi khi tự động tạo đợt bán mặc định:', createErr.message);
+      return null;
+    }
+    return newBatch ? newBatch.id : null;
+  } else {
+    // In-memory fallback
+    if (requestedBatchId) {
+      const b = memBatches.find(x => String(x.id) === String(requestedBatchId) && String(x.user_id) === String(userId));
+      if (b) return b.id;
+    }
+    let b = memBatches.find(x => String(x.user_id) === String(userId) && x.status === 'active');
+    if (!b) b = memBatches.find(x => String(x.user_id) === String(userId));
+    if (!b) {
+      const newBatch = {
+        id: Date.now(),
+        user_id: userId,
+        name: 'Đợt bán số 1',
+        status: 'active',
+        created_at: new Date().toISOString()
+      };
+      memBatches.unshift(newBatch);
+      return newBatch.id;
+    }
+    return b.id;
+  }
+}
+
+// Lấy danh sách đợt bán hàng kèm thống kê
+app.get('/api/batches', requireAuth, async (req, res) => {
+  try {
+    if (isSupabaseConfigured) {
+      let { data: batches, error: batchErr } = await supabase
+        .from('sales_batches')
+        .select('*')
+        .eq('user_id', req.user.id)
+        .order('created_at', { ascending: false });
+
+      if (batchErr) throw batchErr;
+
+      // Nếu tài khoản này chưa có đợt bán nào, tự động khởi tạo sẵn "Đợt bán số 1"
+      if (!batches || batches.length === 0) {
+        const { data: firstBatch, error: initErr } = await supabase
           .from('sales_batches')
-          .select('*')
-          .eq('user_id', req.user.id)
-          .order('created_at', { ascending: false });
+          .insert([{ user_id: req.user.id, name: 'Đợt bán số 1', status: 'active' }])
+          .select()
+          .single();
 
-        if (batchErr) throw batchErr;
-
-        // Lấy toàn bộ đơn hàng và sản phẩm của user để tính thống kê
-        const { data: orders } = await supabase
-          .from('orders')
-          .select('id, batch_id, status, total_amount')
-          .eq('user_id', req.user.id);
-
-        const { data: products } = await supabase
-          .from('products')
-          .select('id, batch_id')
-          .eq('user_id', req.user.id);
-
-        const result = (batches || []).map(b => {
-          const bOrders = (orders || []).filter(o => String(o.batch_id) === String(b.id));
-          const bProducts = (products || []).filter(p => String(p.batch_id) === String(b.id));
-          const nonCancelled = bOrders.filter(o => o.status !== 'Đã hủy');
-          const delivered = bOrders.filter(o => o.status === 'Đã giao');
-
-          return {
-            ...b,
-            order_count: bOrders.length,
-            product_count: bProducts.length,
-            total_revenue: nonCancelled.reduce((sum, o) => sum + Number(o.total_amount || 0), 0),
-            delivered_revenue: delivered.reduce((sum, o) => sum + Number(o.total_amount || 0), 0)
-          };
-        });
-
-        return res.json(result);
+        if (!initErr && firstBatch) {
+          batches = [firstBatch];
+        }
       }
 
-      // In-memory
-      const userBatches = memBatches.filter(b => String(b.user_id) === String(req.user.id));
-      const result = userBatches.map(b => {
-        const bOrders = memOrders.filter(o => String(o.batch_id) === String(b.id));
-        const bProducts = memProducts.filter(p => String(p.batch_id) === String(b.id));
+      // Đảm bảo các mặt hàng hoặc đơn hàng cũ chưa có batch_id được gán vào đợt đầu tiên
+      if (batches && batches.length > 0) {
+        const defaultBatchId = batches[0].id;
+        await supabase
+          .from('products')
+          .update({ batch_id: defaultBatchId })
+          .eq('user_id', req.user.id)
+          .is('batch_id', null);
+
+        await supabase
+          .from('orders')
+          .update({ batch_id: defaultBatchId })
+          .eq('user_id', req.user.id)
+          .is('batch_id', null);
+      }
+
+      // Lấy toàn bộ đơn hàng và sản phẩm của user để tính thống kê
+      const { data: orders } = await supabase
+        .from('orders')
+        .select('id, batch_id, status, total_amount')
+        .eq('user_id', req.user.id);
+
+      const { data: products } = await supabase
+        .from('products')
+        .select('id, batch_id')
+        .eq('user_id', req.user.id);
+
+      const result = (batches || []).map(b => {
+        const bOrders = (orders || []).filter(o => String(o.batch_id) === String(b.id));
+        const bProducts = (products || []).filter(p => String(p.batch_id) === String(b.id));
         const nonCancelled = bOrders.filter(o => o.status !== 'Đã hủy');
         const delivered = bOrders.filter(o => o.status === 'Đã giao');
 
@@ -413,93 +501,87 @@ app.post('/api/auth/logout', (req, res) => {
         };
       });
 
-      res.json(result);
-    } catch (err) {
-      res.status(500).json({ error: err.message });
+      return res.json(result);
     }
-  });
 
-  // Tạo đợt bán hàng mới (có thể sao chép thực đơn từ đợt khác)
-  app.post('/api/batches', requireAuth, async (req, res) => {
-    try {
-      const { name, status = 'active', copy_from_batch_id } = req.body;
-      const cleanName = (name || '').trim();
-      if (!cleanName) {
-        return res.status(400).json({ error: 'Vui lòng nhập tên đợt bán hàng' });
-      }
-
-      if (isSupabaseConfigured) {
-        const { data: newBatch, error: createErr } = await supabase
-          .from('sales_batches')
-          .insert([{
-            user_id: req.user.id,
-            name: cleanName,
-            status: status === 'closed' ? 'closed' : 'active'
-          }])
-          .select()
-          .single();
-
-        if (createErr) throw createErr;
-
-        let copiedCount = 0;
-        if (copy_from_batch_id) {
-          const { data: sourceProducts } = await supabase
-            .from('products')
-            .select('name, price')
-            .eq('user_id', req.user.id)
-            .eq('batch_id', copy_from_batch_id);
-
-          if (sourceProducts && sourceProducts.length) {
-            const newProducts = sourceProducts.map(p => ({
-              user_id: req.user.id,
-              batch_id: newBatch.id,
-              name: p.name,
-              price: p.price
-            }));
-            await supabase.from('products').insert(newProducts);
-            copiedCount = newProducts.length;
-          }
-        }
-
-        return res.status(201).json({
-          ...newBatch,
-          order_count: 0,
-          product_count: copiedCount,
-          total_revenue: 0,
-          delivered_revenue: 0,
-          copied_count: copiedCount
-        });
-      }
-
-      // In-memory
-      const newBatch = {
+    // In-memory
+    let userBatches = memBatches.filter(b => String(b.user_id) === String(req.user.id));
+    if (!userBatches.length) {
+      const firstBatch = {
         id: Date.now(),
         user_id: req.user.id,
-        name: cleanName,
-        status: status === 'closed' ? 'closed' : 'active',
+        name: 'Đợt bán số 1',
+        status: 'active',
         created_at: new Date().toISOString()
       };
-      memBatches.unshift(newBatch);
+      memBatches.unshift(firstBatch);
+      userBatches = [firstBatch];
+    }
+
+    const result = userBatches.map(b => {
+      const bOrders = memOrders.filter(o => String(o.batch_id) === String(b.id));
+      const bProducts = memProducts.filter(p => String(p.batch_id) === String(b.id));
+      const nonCancelled = bOrders.filter(o => o.status !== 'Đã hủy');
+      const delivered = bOrders.filter(o => o.status === 'Đã giao');
+
+      return {
+        ...b,
+        order_count: bOrders.length,
+        product_count: bProducts.length,
+        total_revenue: nonCancelled.reduce((sum, o) => sum + Number(o.total_amount || 0), 0),
+        delivered_revenue: delivered.reduce((sum, o) => sum + Number(o.total_amount || 0), 0)
+      };
+    });
+
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Tạo đợt bán hàng mới (có thể sao chép thực đơn từ đợt khác)
+app.post('/api/batches', requireAuth, async (req, res) => {
+  try {
+    const { name, status = 'active', copy_from_batch_id } = req.body;
+    const cleanName = (name || '').trim();
+    if (!cleanName) {
+      return res.status(400).json({ error: 'Vui lòng nhập tên đợt bán hàng' });
+    }
+
+    if (isSupabaseConfigured) {
+      const { data: newBatch, error: createErr } = await supabase
+        .from('sales_batches')
+        .insert([{
+          user_id: req.user.id,
+          name: cleanName,
+          status: status === 'closed' ? 'closed' : 'active'
+        }])
+        .select()
+        .single();
+
+      if (createErr) throw createErr;
 
       let copiedCount = 0;
       if (copy_from_batch_id) {
-        const sourceProducts = memProducts.filter(
-          p => String(p.user_id) === String(req.user.id) && String(p.batch_id) === String(copy_from_batch_id)
-        );
-        sourceProducts.forEach((p, idx) => {
-          memProducts.unshift({
-            id: Date.now() + idx + 10,
+        const { data: sourceProducts } = await supabase
+          .from('products')
+          .select('name, price')
+          .eq('user_id', req.user.id)
+          .eq('batch_id', copy_from_batch_id);
+
+        if (sourceProducts && sourceProducts.length) {
+          const newProducts = sourceProducts.map(p => ({
             user_id: req.user.id,
             batch_id: newBatch.id,
             name: p.name,
-            price: p.price,
-            created_at: new Date().toISOString()
-          });
-        });
-        copiedCount = sourceProducts.length;
+            price: p.price
+          }));
+          await supabase.from('products').insert(newProducts);
+          copiedCount = newProducts.length;
+        }
       }
 
-      res.status(201).json({
+      return res.status(201).json({
         ...newBatch,
         order_count: 0,
         product_count: copiedCount,
@@ -507,550 +589,560 @@ app.post('/api/auth/logout', (req, res) => {
         delivered_revenue: 0,
         copied_count: copiedCount
       });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
     }
-  });
 
-  // Cập nhật đợt bán hàng (tên, trạng thái)
-  app.patch('/api/batches/:id', requireAuth, async (req, res) => {
-    try {
-      const { id } = req.params;
-      const { name, status } = req.body;
-      const updateData = {};
-      if (name) updateData.name = name.trim();
-      if (status) updateData.status = status;
+    // In-memory
+    const newBatch = {
+      id: Date.now(),
+      user_id: req.user.id,
+      name: cleanName,
+      status: status === 'closed' ? 'closed' : 'active',
+      created_at: new Date().toISOString()
+    };
+    memBatches.unshift(newBatch);
 
-      if (isSupabaseConfigured) {
-        const { data, error } = await supabase
-          .from('sales_batches')
-          .update(updateData)
-          .eq('id', id)
-          .eq('user_id', req.user.id)
-          .select()
-          .single();
-
-        if (error) throw error;
-        return res.json(data);
-      }
-
-      const batch = memBatches.find(b => String(b.id) === String(id) && String(b.user_id) === String(req.user.id));
-      if (!batch) return res.status(404).json({ error: 'Không tìm thấy đợt bán hàng' });
-      if (name) batch.name = name.trim();
-      if (status) batch.status = status;
-      res.json(batch);
-    } catch (err) {
-      res.status(500).json({ error: err.message });
-    }
-  });
-
-  // Sao chép thực đơn từ đợt nguồn vào đợt hiện tại
-  app.post('/api/batches/:id/copy-menu', requireAuth, async (req, res) => {
-    try {
-      const { id } = req.params;
-      const { source_batch_id } = req.body;
-
-      if (!source_batch_id || String(id) === String(source_batch_id)) {
-        return res.status(400).json({ error: 'Vui lòng chọn đợt bán nguồn hợp lệ để sao chép' });
-      }
-
-      if (isSupabaseConfigured) {
-        const { data: targetBatch } = await supabase
-          .from('sales_batches')
-          .select('id')
-          .eq('id', id)
-          .eq('user_id', req.user.id)
-          .single();
-        if (!targetBatch) return res.status(404).json({ error: 'Đợt đích không tồn tại' });
-
-        const { data: sourceProducts } = await supabase
-          .from('products')
-          .select('name, price')
-          .eq('user_id', req.user.id)
-          .eq('batch_id', source_batch_id);
-
-        if (!sourceProducts || !sourceProducts.length) {
-          return res.status(400).json({ error: 'Đợt bán nguồn chưa có mặt hàng nào để sao chép' });
-        }
-
-        const newProducts = sourceProducts.map(p => ({
-          user_id: req.user.id,
-          batch_id: Number(id),
-          name: p.name,
-          price: p.price
-        }));
-
-        const { data: inserted, error: insErr } = await supabase
-          .from('products')
-          .insert(newProducts)
-          .select();
-
-        if (insErr) throw insErr;
-        return res.json({ success: true, count: inserted.length });
-      }
-
-      // In-memory
-      const targetBatch = memBatches.find(b => String(b.id) === String(id) && String(b.user_id) === String(req.user.id));
-      if (!targetBatch) return res.status(404).json({ error: 'Đợt đích không tồn tại' });
-
+    let copiedCount = 0;
+    if (copy_from_batch_id) {
       const sourceProducts = memProducts.filter(
-        p => String(p.user_id) === String(req.user.id) && String(p.batch_id) === String(source_batch_id)
+        p => String(p.user_id) === String(req.user.id) && String(p.batch_id) === String(copy_from_batch_id)
       );
-
-      if (!sourceProducts.length) {
-        return res.status(400).json({ error: 'Đợt bán nguồn chưa có mặt hàng nào để sao chép' });
-      }
-
       sourceProducts.forEach((p, idx) => {
         memProducts.unshift({
           id: Date.now() + idx + 10,
           user_id: req.user.id,
-          batch_id: Number(id),
+          batch_id: newBatch.id,
           name: p.name,
           price: p.price,
           created_at: new Date().toISOString()
         });
       });
-
-      res.json({ success: true, count: sourceProducts.length });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
+      copiedCount = sourceProducts.length;
     }
-  });
 
-  // Xóa đợt bán hàng
-  app.delete('/api/batches/:id', requireAuth, async (req, res) => {
-    try {
-      const { id } = req.params;
-      if (isSupabaseConfigured) {
-        const { error } = await supabase
-          .from('sales_batches')
-          .delete()
-          .eq('id', id)
-          .eq('user_id', req.user.id);
-        if (error) throw error;
-        return res.json({ success: true });
-      }
+    res.status(201).json({
+      ...newBatch,
+      order_count: 0,
+      product_count: copiedCount,
+      total_revenue: 0,
+      delivered_revenue: 0,
+      copied_count: copiedCount
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
-      memBatches = memBatches.filter(b => !(String(b.id) === String(id) && String(b.user_id) === String(req.user.id)));
-      // Xóa sản phẩm và đơn hàng thuộc đợt này
-      memProducts = memProducts.filter(p => !(String(p.batch_id) === String(id) && String(p.user_id) === String(req.user.id)));
-      memOrders = memOrders.filter(o => !(String(o.batch_id) === String(id) && String(o.user_id) === String(req.user.id)));
-      res.json({ success: true });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
+// Cập nhật đợt bán hàng (tên, trạng thái)
+app.patch('/api/batches/:id', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, status } = req.body;
+    const updateData = {};
+    if (name) updateData.name = name.trim();
+    if (status) updateData.status = status;
+
+    if (isSupabaseConfigured) {
+      const { data, error } = await supabase
+        .from('sales_batches')
+        .update(updateData)
+        .eq('id', id)
+        .eq('user_id', req.user.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return res.json(data);
     }
-  });
 
-  // ================= MẶT HÀNG / THỰC ĐƠN (PRODUCTS) =================
+    const batch = memBatches.find(b => String(b.id) === String(id) && String(b.user_id) === String(req.user.id));
+    if (!batch) return res.status(404).json({ error: 'Không tìm thấy đợt bán hàng' });
+    if (name) batch.name = name.trim();
+    if (status) batch.status = status;
+    res.json(batch);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
-  // Lấy danh sách mặt hàng của đợt bán (hoặc tất cả)
-  app.get('/api/products', requireAuth, async (req, res) => {
-    try {
-      const { batch_id } = req.query;
+// Sao chép thực đơn từ đợt nguồn vào đợt hiện tại
+app.post('/api/batches/:id/copy-menu', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { source_batch_id } = req.body;
 
-      if (isSupabaseConfigured) {
-        let query = supabase
-          .from('products')
-          .select('*')
-          .eq('user_id', req.user.id);
-
-        if (batch_id && batch_id !== 'all') {
-          query = query.eq('batch_id', batch_id);
-        }
-
-        const { data, error } = await query.order('created_at', { ascending: false });
-        if (error) throw error;
-        return res.json(data || []);
-      }
-
-      let userProducts = memProducts.filter(p => String(p.user_id) === String(req.user.id));
-      if (batch_id && batch_id !== 'all') {
-        userProducts = userProducts.filter(p => String(p.batch_id) === String(batch_id));
-      }
-      res.json(userProducts);
-    } catch (err) {
-      res.status(500).json({ error: err.message });
+    if (!source_batch_id || String(id) === String(source_batch_id)) {
+      return res.status(400).json({ error: 'Vui lòng chọn đợt bán nguồn hợp lệ để sao chép' });
     }
-  });
 
-  // Thêm mặt hàng vào thực đơn đợt bán
-  app.post('/api/products', requireAuth, async (req, res) => {
-    try {
-      const { name, price, batch_id } = req.body;
-      if (!name || price === undefined) {
-        return res.status(400).json({ error: 'Thiếu tên hoặc giá mặt hàng' });
+    if (isSupabaseConfigured) {
+      const { data: targetBatch } = await supabase
+        .from('sales_batches')
+        .select('id')
+        .eq('id', id)
+        .eq('user_id', req.user.id)
+        .single();
+      if (!targetBatch) return res.status(404).json({ error: 'Đợt đích không tồn tại' });
+
+      const { data: sourceProducts } = await supabase
+        .from('products')
+        .select('name, price')
+        .eq('user_id', req.user.id)
+        .eq('batch_id', source_batch_id);
+
+      if (!sourceProducts || !sourceProducts.length) {
+        return res.status(400).json({ error: 'Đợt bán nguồn chưa có mặt hàng nào để sao chép' });
       }
 
-      let targetBatchId = batch_id;
-      if (!targetBatchId) {
-        // Tìm đợt bán active đầu tiên hoặc mới nhất
-        if (isSupabaseConfigured) {
-          const { data: b } = await supabase
-            .from('sales_batches')
-            .select('id')
-            .eq('user_id', req.user.id)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          targetBatchId = b ? b.id : null;
-        } else {
-          const b = memBatches.find(x => String(x.user_id) === String(req.user.id));
-          targetBatchId = b ? b.id : null;
-        }
-      }
-
-      if (isSupabaseConfigured) {
-        const { data, error } = await supabase
-          .from('products')
-          .insert([{
-            user_id: req.user.id,
-            batch_id: targetBatchId,
-            name: name.trim(),
-            price: Number(price)
-          }])
-          .select()
-          .single();
-        if (error) throw error;
-        return res.status(201).json(data);
-      }
-
-      const newProd = {
-        id: Date.now(),
+      const newProducts = sourceProducts.map(p => ({
         user_id: req.user.id,
-        batch_id: targetBatchId ? Number(targetBatchId) : null,
-        name: name.trim(),
-        price: Number(price),
+        batch_id: Number(id),
+        name: p.name,
+        price: p.price
+      }));
+
+      const { data: inserted, error: insErr } = await supabase
+        .from('products')
+        .insert(newProducts)
+        .select();
+
+      if (insErr) throw insErr;
+      return res.json({ success: true, count: inserted.length });
+    }
+
+    // In-memory
+    const targetBatch = memBatches.find(b => String(b.id) === String(id) && String(b.user_id) === String(req.user.id));
+    if (!targetBatch) return res.status(404).json({ error: 'Đợt đích không tồn tại' });
+
+    const sourceProducts = memProducts.filter(
+      p => String(p.user_id) === String(req.user.id) && String(p.batch_id) === String(source_batch_id)
+    );
+
+    if (!sourceProducts.length) {
+      return res.status(400).json({ error: 'Đợt bán nguồn chưa có mặt hàng nào để sao chép' });
+    }
+
+    sourceProducts.forEach((p, idx) => {
+      memProducts.unshift({
+        id: Date.now() + idx + 10,
+        user_id: req.user.id,
+        batch_id: Number(id),
+        name: p.name,
+        price: p.price,
         created_at: new Date().toISOString()
-      };
-      memProducts.unshift(newProd);
-      res.status(201).json(newProd);
-    } catch (err) {
-      res.status(500).json({ error: err.message });
+      });
+    });
+
+    res.json({ success: true, count: sourceProducts.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Xóa đợt bán hàng
+app.delete('/api/batches/:id', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (isSupabaseConfigured) {
+      const { error } = await supabase
+        .from('sales_batches')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', req.user.id);
+      if (error) throw error;
+      return res.json({ success: true });
     }
-  });
 
-  // Xóa mặt hàng
-  app.delete('/api/products/:id', requireAuth, async (req, res) => {
-    try {
-      const { id } = req.params;
-      if (isSupabaseConfigured) {
-        const { error } = await supabase
-          .from('products')
-          .delete()
-          .eq('id', id)
-          .eq('user_id', req.user.id);
-        if (error) throw error;
-        return res.json({ success: true });
-      }
-      memProducts = memProducts.filter(p => !(String(p.id) === String(id) && String(p.user_id) === String(req.user.id)));
-      res.json({ success: true });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
-    }
-  });
+    memBatches = memBatches.filter(b => !(String(b.id) === String(id) && String(b.user_id) === String(req.user.id)));
+    // Xóa sản phẩm và đơn hàng thuộc đợt này
+    memProducts = memProducts.filter(p => !(String(p.batch_id) === String(id) && String(p.user_id) === String(req.user.id)));
+    memOrders = memOrders.filter(o => !(String(o.batch_id) === String(id) && String(o.user_id) === String(req.user.id)));
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
-  // ================= ĐƠN HÀNG (ORDERS) =================
+// ================= MẶT HÀNG / THỰC ĐƠN (PRODUCTS) =================
 
-  // Lấy danh sách đơn hàng (lọc theo batch_id nếu có)
-  app.get('/api/orders', requireAuth, async (req, res) => {
-    try {
-      const { batch_id } = req.query;
+// Lấy danh sách mặt hàng của đợt bán (hoặc tất cả)
+app.get('/api/products', requireAuth, async (req, res) => {
+  try {
+    const { batch_id } = req.query;
 
-      if (isSupabaseConfigured) {
-        let query = supabase
-          .from('orders')
-          .select('*, order_items(*)')
+    if (isSupabaseConfigured) {
+      let query = supabase
+        .from('products')
+        .select('*')
         .eq('user_id', req.user.id);
 
-        if (batch_id && batch_id !== 'all') {
-          query = query.eq('batch_id', batch_id);
-        }
-
-        const { data, error } = await query.order('created_at', { ascending: false });
-        if (error) throw error;
-        return res.json(data || []);
-      }
-
-      let userOrders = memOrders.filter(o => String(o.user_id) === String(req.user.id));
       if (batch_id && batch_id !== 'all') {
-        userOrders = userOrders.filter(o => String(o.batch_id) === String(batch_id));
+        query = query.eq('batch_id', batch_id);
       }
-      res.json(userOrders);
-    } catch (err) {
-      res.status(500).json({ error: err.message });
+
+      const { data, error } = await query.order('created_at', { ascending: false });
+      if (error) throw error;
+      return res.json(data || []);
     }
-  });
 
-  // Tạo đơn hàng (gắn theo batch_id)
-  app.post('/api/orders', requireAuth, async (req, res) => {
-    try {
-      const {
-        batch_id,
-        customer_name = '',
-        customer_phone,
-        shipping_address,
-        shipping_fee = 0,
-        status = 'Chờ xử lý',
-        items = []
-      } = req.body;
-
-      if (!customer_phone || !shipping_address) {
-        return res.status(400).json({ error: 'Vui lòng nhập SĐT và địa chỉ nhận hàng' });
-      }
-      if (!items.length) {
-        return res.status(400).json({ error: 'Đơn hàng phải có ít nhất 1 mặt hàng' });
-      }
-
-      let targetBatchId = batch_id;
-      if (!targetBatchId) {
-        if (isSupabaseConfigured) {
-          const { data: b } = await supabase
-            .from('sales_batches')
-            .select('id')
-            .eq('user_id', req.user.id)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          targetBatchId = b ? b.id : null;
-        } else {
-          const b = memBatches.find(x => String(x.user_id) === String(req.user.id));
-          targetBatchId = b ? b.id : null;
-        }
-      }
-
-      const shipFee = Math.max(0, Number(shipping_fee) || 0);
-      const itemsTotal = items.reduce(
-        (sum, item) => sum + (Number(item.price) || 0) * (Number(item.quantity) || 1),
-        0
-      );
-      const total_amount = itemsTotal + shipFee;
-
-      if (isSupabaseConfigured) {
-        const { data: order, error: orderErr } = await supabase
-          .from('orders')
-          .insert([{
-            user_id: req.user.id,
-            batch_id: targetBatchId,
-            customer_name: (customer_name || '').trim(),
-            customer_phone: customer_phone.trim(),
-            shipping_address: shipping_address.trim(),
-            shipping_fee: shipFee,
-            status,
-            total_amount
-          }])
-          .select()
-          .single();
-
-        if (orderErr) throw orderErr;
-
-        const orderItems = items.map(item => ({
-          order_id: order.id,
-          product_id: item.product_id || null,
-          product_name: item.product_name,
-          price: Number(item.price) || 0,
-          quantity: Number(item.quantity) || 1
-        }));
-
-        const { error: itemsErr } = await supabase.from('order_items').insert(orderItems);
-        if (itemsErr) throw itemsErr;
-
-        const { data: fullOrder, error: fetchErr } = await supabase
-          .from('orders')
-          .select('*, order_items(*)')
-          .eq('id', order.id)
-          .single();
-        if (fetchErr) throw fetchErr;
-
-        return res.status(201).json(fullOrder);
-      }
-
-      const newOrder = {
-        id: Date.now(),
-        user_id: req.user.id,
-        batch_id: targetBatchId ? Number(targetBatchId) : null,
-        customer_name: (customer_name || '').trim(),
-        customer_phone: customer_phone.trim(),
-        shipping_address: shipping_address.trim(),
-        shipping_fee: shipFee,
-        status,
-        total_amount,
-        created_at: new Date().toISOString(),
-        order_items: items.map((it, idx) => ({
-          id: Date.now() + idx,
-          order_id: Date.now(),
-          product_name: it.product_name,
-          price: Number(it.price) || 0,
-          quantity: Number(it.quantity) || 1
-        }))
-      };
-      memOrders.unshift(newOrder);
-      res.status(201).json(newOrder);
-    } catch (err) {
-      res.status(500).json({ error: err.message });
+    let userProducts = memProducts.filter(p => String(p.user_id) === String(req.user.id));
+    if (batch_id && batch_id !== 'all') {
+      userProducts = userProducts.filter(p => String(p.batch_id) === String(batch_id));
     }
-  });
+    res.json(userProducts);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
-  // Chỉnh sửa đơn hàng chi tiết (cho phép ở bất kỳ trạng thái nào)
-  app.put('/api/orders/:id', requireAuth, async (req, res) => {
-    try {
-      const { id } = req.params;
-      const {
-        customer_name = '',
-        customer_phone,
-        shipping_address,
-        shipping_fee = 0,
-        status,
-        items = [],
-        batch_id
-      } = req.body;
+// Thêm mặt hàng vào thực đơn đợt bán
+app.post('/api/products', requireAuth, async (req, res) => {
+  try {
+    const { name, price, batch_id } = req.body;
+    if (!name || price === undefined) {
+      return res.status(400).json({ error: 'Thiếu tên hoặc giá mặt hàng' });
+    }
 
-      if (!customer_phone || !shipping_address) {
-        return res.status(400).json({ error: 'Vui lòng nhập SĐT và địa chỉ nhận hàng' });
+    const targetBatchId = await resolveBatchId(req.user.id, batch_id);
+
+    if (isSupabaseConfigured) {
+      const { data, error } = await supabase
+        .from('products')
+        .insert([{
+          user_id: req.user.id,
+          batch_id: targetBatchId,
+          name: name.trim(),
+          price: Number(price)
+        }])
+        .select()
+        .single();
+      if (error) throw error;
+      return res.status(201).json(data);
+    }
+
+    const newProd = {
+      id: Date.now(),
+      user_id: req.user.id,
+      batch_id: targetBatchId ? Number(targetBatchId) : null,
+      name: name.trim(),
+      price: Number(price),
+      created_at: new Date().toISOString()
+    };
+    memProducts.unshift(newProd);
+    res.status(201).json(newProd);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Xóa mặt hàng
+app.delete('/api/products/:id', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (isSupabaseConfigured) {
+      const { error } = await supabase
+        .from('products')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', req.user.id);
+      if (error) throw error;
+      return res.json({ success: true });
+    }
+    memProducts = memProducts.filter(p => !(String(p.id) === String(id) && String(p.user_id) === String(req.user.id)));
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ================= ĐƠN HÀNG (ORDERS) =================
+
+// Lấy danh sách đơn hàng (lọc theo batch_id nếu có)
+app.get('/api/orders', requireAuth, async (req, res) => {
+  try {
+    const { batch_id } = req.query;
+
+    if (isSupabaseConfigured) {
+      let query = supabase
+        .from('orders')
+        .select('*, order_items(*)')
+        .eq('user_id', req.user.id);
+
+      if (batch_id && batch_id !== 'all') {
+        query = query.eq('batch_id', batch_id);
       }
-      if (!items.length) {
-        return res.status(400).json({ error: 'Đơn hàng phải có ít nhất 1 mặt hàng' });
-      }
 
-      const shipFee = Math.max(0, Number(shipping_fee) || 0);
-      const itemsTotal = items.reduce(
-        (sum, item) => sum + (Number(item.price) || 0) * (Number(item.quantity) || 1),
-        0
-      );
-      const total_amount = itemsTotal + shipFee;
+      const { data, error } = await query.order('created_at', { ascending: false });
+      if (error) throw error;
+      return res.json(data || []);
+    }
 
-      if (isSupabaseConfigured) {
-        const updateData = {
+    let userOrders = memOrders.filter(o => String(o.user_id) === String(req.user.id));
+    if (batch_id && batch_id !== 'all') {
+      userOrders = userOrders.filter(o => String(o.batch_id) === String(batch_id));
+    }
+    res.json(userOrders);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Tạo đơn hàng (gắn theo batch_id)
+app.post('/api/orders', requireAuth, async (req, res) => {
+  try {
+    const {
+      batch_id,
+      customer_name = '',
+      customer_phone,
+      shipping_address,
+      shipping_fee = 0,
+      status = 'Chờ xử lý',
+      items = []
+    } = req.body;
+
+    if (!customer_phone || !shipping_address) {
+      return res.status(400).json({ error: 'Vui lòng nhập SĐT và địa chỉ nhận hàng' });
+    }
+    if (!items.length) {
+      return res.status(400).json({ error: 'Đơn hàng phải có ít nhất 1 mặt hàng' });
+    }
+
+    const targetBatchId = await resolveBatchId(req.user.id, batch_id);
+
+    const shipFee = Math.max(0, Number(shipping_fee) || 0);
+    const itemsTotal = items.reduce(
+      (sum, item) => sum + (Number(item.price) || 0) * (Number(item.quantity) || 1),
+      0
+    );
+    const total_amount = itemsTotal + shipFee;
+
+    if (isSupabaseConfigured) {
+      const { data: order, error: orderErr } = await supabase
+        .from('orders')
+        .insert([{
+          user_id: req.user.id,
+          batch_id: targetBatchId,
           customer_name: (customer_name || '').trim(),
           customer_phone: customer_phone.trim(),
           shipping_address: shipping_address.trim(),
           shipping_fee: shipFee,
+          status,
           total_amount
-        };
-        if (status) updateData.status = status;
-        if (batch_id) updateData.batch_id = batch_id;
+        }])
+        .select()
+        .single();
 
-        const { data: updatedOrder, error: orderErr } = await supabase
-          .from('orders')
-          .update(updateData)
-          .eq('id', id)
-          .eq('user_id', req.user.id)
-          .select()
-          .single();
+      if (orderErr) throw orderErr;
 
-        if (orderErr) throw orderErr;
-        if (!updatedOrder) return res.status(404).json({ error: 'Không tìm thấy đơn hàng' });
+      const orderItems = items.map(item => ({
+        order_id: order.id,
+        product_id: item.product_id || null,
+        product_name: item.product_name,
+        price: Number(item.price) || 0,
+        quantity: Number(item.quantity) || 1
+      }));
 
-        // Cập nhật lại danh sách mặt hàng
-        const { error: delErr } = await supabase
-          .from('order_items')
-          .delete()
-          .eq('order_id', id);
+      const { error: itemsErr } = await supabase.from('order_items').insert(orderItems);
+      if (itemsErr) throw itemsErr;
 
-        if (delErr) throw delErr;
+      const { data: fullOrder, error: fetchErr } = await supabase
+        .from('orders')
+        .select('*, order_items(*)')
+        .eq('id', order.id)
+        .single();
+      if (fetchErr) throw fetchErr;
 
-        const orderItems = items.map(item => ({
-          order_id: Number(id),
-          product_id: item.product_id || null,
-          product_name: item.product_name,
-          price: Number(item.price) || 0,
-          quantity: Number(item.quantity) || 1
-        }));
+      return res.status(201).json(fullOrder);
+    }
 
-        const { error: insertItemsErr } = await supabase.from('order_items').insert(orderItems);
-        if (insertItemsErr) throw insertItemsErr;
+    const newOrder = {
+      id: Date.now(),
+      user_id: req.user.id,
+      batch_id: targetBatchId ? Number(targetBatchId) : null,
+      customer_name: (customer_name || '').trim(),
+      customer_phone: customer_phone.trim(),
+      shipping_address: shipping_address.trim(),
+      shipping_fee: shipFee,
+      status,
+      total_amount,
+      created_at: new Date().toISOString(),
+      order_items: items.map((it, idx) => ({
+        id: Date.now() + idx,
+        order_id: Date.now(),
+        product_name: it.product_name,
+        price: Number(it.price) || 0,
+        quantity: Number(it.quantity) || 1
+      }))
+    };
+    memOrders.unshift(newOrder);
+    res.status(201).json(newOrder);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
-        const { data: fullOrder, error: fetchErr } = await supabase
-          .from('orders')
-          .select('*, order_items(*)')
-          .eq('id', id)
-          .single();
+// Chỉnh sửa đơn hàng chi tiết (cho phép ở bất kỳ trạng thái nào)
+app.put('/api/orders/:id', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      customer_name = '',
+      customer_phone,
+      shipping_address,
+      shipping_fee = 0,
+      status,
+      items = [],
+      batch_id
+    } = req.body;
 
-        if (fetchErr) throw fetchErr;
-        return res.json(fullOrder);
-      }
+    if (!customer_phone || !shipping_address) {
+      return res.status(400).json({ error: 'Vui lòng nhập SĐT và địa chỉ nhận hàng' });
+    }
+    if (!items.length) {
+      return res.status(400).json({ error: 'Đơn hàng phải có ít nhất 1 mặt hàng' });
+    }
 
-      // In-memory
-      const orderIndex = memOrders.findIndex(
-        o => String(o.id) === String(id) && String(o.user_id) === String(req.user.id)
-      );
-      if (orderIndex === -1) return res.status(404).json({ error: 'Không tìm thấy đơn hàng' });
+    const shipFee = Math.max(0, Number(shipping_fee) || 0);
+    const itemsTotal = items.reduce(
+      (sum, item) => sum + (Number(item.price) || 0) * (Number(item.quantity) || 1),
+      0
+    );
+    const total_amount = itemsTotal + shipFee;
 
-      const existing = memOrders[orderIndex];
-      const updated = {
-        ...existing,
+    if (isSupabaseConfigured) {
+      const updateData = {
         customer_name: (customer_name || '').trim(),
         customer_phone: customer_phone.trim(),
         shipping_address: shipping_address.trim(),
         shipping_fee: shipFee,
-        status: status || existing.status,
-        batch_id: batch_id ? Number(batch_id) : existing.batch_id,
-        total_amount,
-        order_items: items.map((it, idx) => ({
-          id: it.id || (Date.now() + idx),
-          order_id: Number(id),
-          product_name: it.product_name,
-          price: Number(it.price) || 0,
-          quantity: Number(it.quantity) || 1
-        }))
+        total_amount
       };
-      memOrders[orderIndex] = updated;
-      res.json(updated);
-    } catch (err) {
-      res.status(500).json({ error: err.message });
-    }
-  });
-
-  // Cập nhật trạng thái đơn hàng
-  app.patch('/api/orders/:id/status', requireAuth, async (req, res) => {
-    try {
-      const { id } = req.params;
-      const { status } = req.body;
-      if (!status) return res.status(400).json({ error: 'Thiếu trạng thái' });
-
-      if (isSupabaseConfigured) {
-        const { data, error } = await supabase
-          .from('orders')
-          .update({ status })
-          .eq('id', id)
-          .eq('user_id', req.user.id)
-          .select('*, order_items(*)')
-          .single();
-        if (error) throw error;
-        return res.json(data);
+      if (status) updateData.status = status;
+      if (batch_id) {
+        const targetBatchId = await resolveBatchId(req.user.id, batch_id);
+        updateData.batch_id = targetBatchId;
       }
 
-      const order = memOrders.find(o => String(o.id) === String(id) && String(o.user_id) === String(req.user.id));
-      if (!order) return res.status(404).json({ error: 'Không tìm thấy đơn hàng' });
-      order.status = status;
-      res.json(order);
-    } catch (err) {
-      res.status(500).json({ error: err.message });
-    }
-  });
+      const { data: updatedOrder, error: orderErr } = await supabase
+        .from('orders')
+        .update(updateData)
+        .eq('id', id)
+        .eq('user_id', req.user.id)
+        .select()
+        .single();
 
-  // Xóa đơn hàng
-  app.delete('/api/orders/:id', requireAuth, async (req, res) => {
-    try {
-      const { id } = req.params;
-      if (isSupabaseConfigured) {
-        const { error } = await supabase
-          .from('orders')
-          .delete()
-          .eq('id', id)
-          .eq('user_id', req.user.id);
-        if (error) throw error;
-        return res.json({ success: true });
-      }
-      memOrders = memOrders.filter(o => !(String(o.id) === String(id) && String(o.user_id) === String(req.user.id)));
-      res.json({ success: true });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
-    }
-  });
+      if (orderErr) throw orderErr;
+      if (!updatedOrder) return res.status(404).json({ error: 'Không tìm thấy đơn hàng' });
 
-  app.listen(PORT, () => {
-    console.log(`Server chạy tại: http://localhost:${PORT}`);
-    console.log(`Chế độ lưu trữ: ${isSupabaseConfigured ? 'Supabase (' + supabaseUrl + ')' : 'Bộ nhớ tạm (Chưa cấu hình .env)'}`);
-    console.log(`Hệ thống đợt bán hàng (Sales Batches) đã sẵn sàng!`);
-  });
+      // Cập nhật lại danh sách mặt hàng
+      const { error: delErr } = await supabase
+        .from('order_items')
+        .delete()
+        .eq('order_id', id);
+
+      if (delErr) throw delErr;
+
+      const orderItems = items.map(item => ({
+        order_id: Number(id),
+        product_id: item.product_id || null,
+        product_name: item.product_name,
+        price: Number(item.price) || 0,
+        quantity: Number(item.quantity) || 1
+      }));
+
+      const { error: insertItemsErr } = await supabase.from('order_items').insert(orderItems);
+      if (insertItemsErr) throw insertItemsErr;
+
+      const { data: fullOrder, error: fetchErr } = await supabase
+        .from('orders')
+        .select('*, order_items(*)')
+        .eq('id', id)
+        .single();
+
+      if (fetchErr) throw fetchErr;
+      return res.json(fullOrder);
+    }
+
+    // In-memory
+    const orderIndex = memOrders.findIndex(
+      o => String(o.id) === String(id) && String(o.user_id) === String(req.user.id)
+    );
+    if (orderIndex === -1) return res.status(404).json({ error: 'Không tìm thấy đơn hàng' });
+
+    const existing = memOrders[orderIndex];
+    const updated = {
+      ...existing,
+      customer_name: (customer_name || '').trim(),
+      customer_phone: customer_phone.trim(),
+      shipping_address: shipping_address.trim(),
+      shipping_fee: shipFee,
+      status: status || existing.status,
+      batch_id: batch_id ? Number(batch_id) : existing.batch_id,
+      total_amount,
+      order_items: items.map((it, idx) => ({
+        id: it.id || (Date.now() + idx),
+        order_id: Number(id),
+        product_name: it.product_name,
+        price: Number(it.price) || 0,
+        quantity: Number(it.quantity) || 1
+      }))
+    };
+    memOrders[orderIndex] = updated;
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Cập nhật trạng thái đơn hàng
+app.patch('/api/orders/:id/status', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    if (!status) return res.status(400).json({ error: 'Thiếu trạng thái' });
+
+    if (isSupabaseConfigured) {
+      const { data, error } = await supabase
+        .from('orders')
+        .update({ status })
+        .eq('id', id)
+        .eq('user_id', req.user.id)
+        .select('*, order_items(*)')
+        .single();
+      if (error) throw error;
+      return res.json(data);
+    }
+
+    const order = memOrders.find(o => String(o.id) === String(id) && String(o.user_id) === String(req.user.id));
+    if (!order) return res.status(404).json({ error: 'Không tìm thấy đơn hàng' });
+    order.status = status;
+    res.json(order);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Xóa đơn hàng
+app.delete('/api/orders/:id', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (isSupabaseConfigured) {
+      const { error } = await supabase
+        .from('orders')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', req.user.id);
+      if (error) throw error;
+      return res.json({ success: true });
+    }
+    memOrders = memOrders.filter(o => !(String(o.id) === String(id) && String(o.user_id) === String(req.user.id)));
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.listen(PORT, () => {
+  console.log(`Server chạy tại: http://localhost:${PORT}`);
+  console.log(`Chế độ lưu trữ: ${isSupabaseConfigured ? 'Supabase (' + supabaseUrl + ')' : 'Bộ nhớ tạm (Chưa cấu hình .env)'}`);
+  console.log(`Hệ thống đợt bán hàng (Sales Batches) đã sẵn sàng!`);
+});

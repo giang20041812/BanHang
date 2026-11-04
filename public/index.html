@@ -4,6 +4,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <title>Hệ Thống Quản Lý Đơn Hàng & Doanh Thu</title>
   <!-- Google Font Plus Jakarta Sans -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -95,7 +98,8 @@
         </div>
 
         <div>
-          <label class="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wide">Xác nhận mật khẩu *</label>
+          <label class="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wide">Xác nhận mật khẩu
+            *</label>
           <input type="password" id="register-confirm-password" required placeholder="Nhập lại mật khẩu..."
             class="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition">
         </div>
@@ -176,15 +180,18 @@
     </header>
 
     <!-- THANH CHỌN ĐỢT BÁN HÀNG NHANH (BATCH SELECTOR BAR) -->
-    <div class="bg-gradient-to-r from-indigo-900 via-slate-900 to-indigo-950 rounded-2xl p-3 sm:p-4 text-white shadow-lg shadow-indigo-950/20 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 border border-indigo-700/30">
+    <div
+      class="bg-gradient-to-r from-indigo-900 via-slate-900 to-indigo-950 rounded-2xl p-3 sm:p-4 text-white shadow-lg shadow-indigo-950/20 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 border border-indigo-700/30">
       <div class="flex items-center gap-3">
-        <div class="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center text-xl shrink-0">
+        <div
+          class="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center text-xl shrink-0">
           🚀
         </div>
         <div>
           <div class="flex items-center gap-2">
             <span class="text-[11px] uppercase tracking-wider text-indigo-300 font-extrabold">Đợt bán đang chọn:</span>
-            <span id="active-batch-status-badge" class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+            <span id="active-batch-status-badge"
+              class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
               Đang mở bán
             </span>
           </div>
@@ -213,7 +220,7 @@
     </div>
 
 
-    
+
     <!-- TAB 0: QUẢN LÝ CÁC ĐỢT BÁN HÀNG -->
     <main id="tab-batches" class="hidden space-y-5">
       <!-- Thống kê đợt bán -->
@@ -221,7 +228,8 @@
         <div class="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-sm">
           <div class="flex items-center justify-between">
             <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Tổng số đợt bán</span>
-            <span class="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">🚀</span>
+            <span
+              class="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">🚀</span>
           </div>
           <p id="stat-total-batches" class="text-xl sm:text-2xl font-extrabold text-slate-900 mt-2">0 đợt</p>
           <p class="text-[11px] text-slate-400 mt-1">Đã khởi tạo trong tài khoản</p>
@@ -230,7 +238,8 @@
         <div class="bg-white p-4 sm:p-5 rounded-2xl border border-emerald-200/70 shadow-sm">
           <div class="flex items-center justify-between">
             <span class="text-xs font-bold text-emerald-700 uppercase tracking-wider">Đang mở bán</span>
-            <span class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">🟢</span>
+            <span
+              class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">🟢</span>
           </div>
           <p id="stat-active-batches" class="text-xl sm:text-2xl font-extrabold text-emerald-600 mt-2">0 đợt</p>
           <p class="text-[11px] text-emerald-700/70 mt-1">Có thể mở nhiều đợt cùng lúc</p>
@@ -239,7 +248,8 @@
         <div class="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-sm">
           <div class="flex items-center justify-between">
             <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Doanh thu tất cả đợt</span>
-            <span class="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center font-bold">💰</span>
+            <span
+              class="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center font-bold">💰</span>
           </div>
           <p id="stat-batches-revenue" class="text-xl sm:text-2xl font-extrabold text-indigo-600 mt-2">0 ₫</p>
           <p class="text-[11px] text-slate-400 mt-1">Tổng doanh thu từ trước đến nay</p>
@@ -247,7 +257,8 @@
       </div>
 
       <!-- Action bar của đợt bán -->
-      <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+      <div
+        class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
         <div>
           <h2 class="text-base sm:text-lg font-bold text-slate-900">Danh Sách Đợt Bán Hàng</h2>
           <p class="text-xs text-slate-500">Mỗi đợt có thực đơn, danh sách đơn hàng và doanh thu riêng biệt</p>
@@ -547,7 +558,8 @@
           </div>
           <div>
             <h2 id="modal-order-title" class="text-base sm:text-lg font-bold text-slate-900">Tạo Đơn Hàng Mới</h2>
-            <p id="modal-order-subtitle" class="text-[11px] text-slate-400">Có thể chỉnh sửa đơn ở bất kỳ trạng thái nào</p>
+            <p id="modal-order-subtitle" class="text-[11px] text-slate-400">Có thể chỉnh sửa đơn ở bất kỳ trạng thái nào
+            </p>
           </div>
         </div>
         <button onclick="closeOrderModal()"
@@ -614,7 +626,8 @@
         </div>
 
         <div>
-          <label id="order-status-label" class="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wide">Trạng thái đơn hàng</label>
+          <label id="order-status-label"
+            class="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wide">Trạng thái đơn hàng</label>
           <select id="order-status"
             class="w-full border border-slate-300 rounded-xl px-3.5 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition font-medium">
             <option value="Chờ xử lý">⏳ Chờ xử lý</option>
@@ -638,7 +651,108 @@
     </div>
   </div>
 
-  <script src="app.js"></script>
+  <!-- Modal Tạo Đợt Bán Hàng Mới -->
+  <div id="batch-modal"
+    class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 z-50 hidden transition-opacity">
+    <div
+      class="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-md p-5 sm:p-6 space-y-4 max-h-[92vh] overflow-y-auto border border-slate-100 animate-in fade-in zoom-in-95 duration-200">
+      <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-sm">
+            🚀
+          </div>
+          <div>
+            <h2 id="modal-batch-title" class="text-base sm:text-lg font-bold text-slate-900">Tạo Đợt Bán Hàng Mới</h2>
+            <p class="text-[11px] text-slate-400">Mỗi đợt bán sẽ có danh sách món ăn và đơn hàng riêng biệt</p>
+          </div>
+        </div>
+        <button onclick="closeBatchModal()"
+          class="w-8 h-8 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-700 text-xl font-bold flex items-center justify-center transition">&times;</button>
+      </div>
+
+      <form id="batch-form" onsubmit="handleSaveBatch(event)" class="space-y-4">
+        <input type="hidden" id="batch-form-id" value="">
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wide">Tên đợt bán hàng *</label>
+          <input type="text" id="batch-name" required placeholder="Ví dụ: Đợt mở bán Thứ Sáu, Đợt Tết..."
+            class="w-full border border-slate-300 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wide">Trạng thái đợt bán</label>
+          <select id="batch-status"
+            class="w-full border border-slate-300 rounded-xl px-3.5 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition font-medium">
+            <option value="active">🟢 Đang mở bán</option>
+            <option value="closed">⚪ Đã kết thúc / Đóng</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wide">Sao chép thực đơn từ đợt khác</label>
+          <select id="batch-copy-from-select"
+            class="w-full border border-slate-300 rounded-xl px-3.5 py-2 text-xs sm:text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition font-medium">
+            <!-- Rendered by JS -->
+          </select>
+          <p class="text-[11px] text-slate-400 mt-1">Tự động nạp sẵn các món từ đợt cũ sang đợt mới này</p>
+        </div>
+
+        <div class="flex justify-end gap-2.5 pt-3 border-t border-slate-100">
+          <button type="button" onclick="closeBatchModal()"
+            class="px-4 py-2.5 border border-slate-200 rounded-xl text-xs sm:text-sm font-bold text-slate-600 hover:bg-slate-100 transition cursor-pointer">
+            Hủy
+          </button>
+          <button type="submit" id="modal-batch-submit-btn"
+            class="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md shadow-emerald-500/25 hover:shadow-lg hover:shadow-emerald-500/35 hover:-translate-y-0.5 active:translate-y-0 transition-all cursor-pointer">
+            🚀 Khởi Tạo Đợt Bán
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Sao Chép Thực Đơn -->
+  <div id="copy-menu-modal"
+    class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 z-50 hidden transition-opacity">
+    <div
+      class="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-md p-5 sm:p-6 space-y-4 max-h-[92vh] overflow-y-auto border border-slate-100 animate-in fade-in zoom-in-95 duration-200">
+      <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-sm">
+            📋
+          </div>
+          <div>
+            <h2 class="text-base sm:text-lg font-bold text-slate-900">Sao Chép Thực Đơn</h2>
+            <p class="text-[11px] text-slate-400">Sao chép món ăn sang: <span id="copy-target-batch-name" class="font-bold text-slate-700"></span></p>
+          </div>
+        </div>
+        <button onclick="closeCopyMenuModal()"
+          class="w-8 h-8 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-700 text-xl font-bold flex items-center justify-center transition">&times;</button>
+      </div>
+
+      <form id="copy-menu-form" onsubmit="handleCopyMenuSubmit(event)" class="space-y-4">
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wide">Chọn đợt bán nguồn *</label>
+          <select id="copy-source-batch-select" required
+            class="w-full border border-slate-300 rounded-xl px-3.5 py-2 text-xs sm:text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition font-medium">
+            <!-- Rendered by JS -->
+          </select>
+        </div>
+
+        <div class="flex justify-end gap-2.5 pt-3 border-t border-slate-100">
+          <button type="button" onclick="closeCopyMenuModal()"
+            class="px-4 py-2.5 border border-slate-200 rounded-xl text-xs sm:text-sm font-bold text-slate-600 hover:bg-slate-100 transition cursor-pointer">
+            Hủy
+          </button>
+          <button type="submit"
+            class="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md shadow-indigo-500/25 hover:shadow-lg hover:shadow-indigo-500/35 transition cursor-pointer">
+            📋 Sao Chép Ngay
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="app.js?v=20261104_2"></script>
 </body>
 
 </html>
